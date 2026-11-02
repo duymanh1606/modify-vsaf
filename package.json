@@ -23,8 +23,7 @@
     "packages/web/dist",
     "workflows",
     "commands",
-    "skills",
-    "telemetry.defaults.json"
+    "skills"
   ],
   "scripts": {
     "build": "npm run build --workspaces",

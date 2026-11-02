@@ -664,6 +664,8 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector:4318"   # /v1/traces +
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <token>"  # optional auth
 ```
 
+`vsaf init` also writes defaults from `telemetry.defaults.json` at the package root (or the file named by `VSAF_TELEMETRY_DEFAULTS`) into new projects. That file is gitignored and not packed — never commit credentials to it; copy `telemetry.defaults.example.json` for a credential-free endpoint, and keep keys in the env vars above.
+
 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` are honored verbatim (no path appended). Note: the protocol is fixed to **http/protobuf** — `OTEL_EXPORTER_OTLP_PROTOCOL` has no effect.
 
 Or in `.vsaf/config.yaml` (env vars take precedence):
