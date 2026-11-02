@@ -1,3 +1,4 @@
 # Telemetry defaults with real credentials — never commit, never pack.
 # Copy telemetry.defaults.example.json, or better: use LANGFUSE_* / OTEL_EXPORTER_OTLP_* env vars.
 telemetry.defaults.json
+node_modules/
