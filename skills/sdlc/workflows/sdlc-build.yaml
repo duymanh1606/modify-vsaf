@@ -1,0 +1,18 @@
+name: sdlc-build
+description: "Sub-flow: Implement → Test Gate — TDD code + automated test verification"
+
+nodes:
+  - id: implement
+    command: sdlc-implement
+    depends_on: []
+
+  - id: test-gate
+    bash: |
+      TEST_CMD='$CONFIG.test_command'
+      case "$TEST_CMD" in *CONFIG.test_command*|'') echo "ERROR: test_command not set in .vsaf/config.yaml — run /sdlc-onboard-code or set it (e.g. test_command: npm test)"; exit 1;; esac
+      $CONFIG.test_command 2>&1
+    depends_on: [implement]
+    loop:
+      on_fail: implement
+      max_retries: 3
+      inject_error: true

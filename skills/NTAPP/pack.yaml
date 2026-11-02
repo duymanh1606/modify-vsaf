@@ -1,0 +1,182 @@
+name: NTAPP
+version: 1.0.0
+description: NTAPP delivery flow — triage, slice planning, slice loop, hotfix, QA pipeline
+author: "@ngocsangairvds/vsaf"
+# Bản engine tối thiểu. Từ 6.15.0 engine mới biết kéo flow từ repo vsaf-workflow
+# và chạy file cài của chính flow. Phải để trong ngoặc kép — viết trần thì YAML đọc
+# dấu > theo cú pháp khác và gãy ngay lúc đọc file.
+requiresEngine: ">=6.15.0"
+
+
+# Deployed with the pack prefix, so these keep the NTAPP-* names their workflows,
+# hooks and documents already use today. No renaming.
+skills:
+  # Discovery & design
+  - business-overview-confluence
+  - system-overview
+  - market-research
+  - product-research
+  - architecture-design
+  - technical-design
+  - feature-design
+  - dd-design
+  - integration-inspection
+  - keycloak-integrate
+
+  # Triage & planning
+  - feature-triage
+  - slice-planning
+  - jira-subtask-creator
+  - sprint-worklog-from-git
+
+  # Design system & UI
+  - ds-bootstrap
+  - ds-build-component
+  - figma-ingest
+  - ui-generation
+  - ux-design
+  - ux-sketch
+
+  # Bug & hotfix
+  - bug-fix-engine
+  - fix-bug
+  - log-bug
+
+  # QA pipeline
+  - qa-audit
+  - qa-gap-resolver
+  - qa-generate-testcase
+  - qa-robot
+  - qa-setup-data
+
+  # Knowledge bundle (OKF) + đồng bộ skill ra máy
+  - okf-refresh
+  - sync-skills-global
+
+  # Confluence publishing
+  - dd-to-confluence
+  - srs-to-confluence
+  - kbnt-to-confluence
+
+  # Bitbucket
+  - create-pull-request
+
+  # Workflow entry points
+  - vsaf-run
+  - vsaf-resume
+  - vsaf-ad-hoc-per-unit
+  - vsaf-express-hotfix
+  - vsaf-fix-bug
+  - vsaf-path-b-quick-dev
+  - vsaf-reproduce-architecture
+  - vsaf-slice-loop
+  - vsaf-staging-deploy
+
+# Deployed without a prefix — the 15 skills that NTAPP skills and workflows call by
+# name, plus what those skills call in turn. Installing NTAPP must not require
+# installing sdlc, so these travel with the pack.
+bundled:
+  - bmad-check-implementation-readiness
+  - bmad-code-review
+  - bmad-create-epics-and-stories
+  - bmad-create-prd
+  - bmad-create-story
+  - bmad-quick-dev
+  - bmad-testarch-atdd
+  - bmad-testarch-ci
+  - bmad-testarch-framework
+  - bmad-testarch-nfr
+  - bmad-testarch-trace
+  - c4-diagram-optimizer
+  - grill-with-docs
+  - lavish
+  # Called by a workflow node, not by any skill file
+  - superpowers-finishing-a-development-branch
+
+# Pack này mang theo script nối dây của chính nó, và nó là nguồn sự thật cho 17 bước
+# đó. Khai ở đây thì install bỏ qua khối nối dây nội bộ của vsaf và gọi script — nếu
+# cả hai cùng chạy thì hai bên ghi lên nhau. Pack không khai (sdlc) đi nhánh cũ,
+# không đổi gì.
+#
+# `env` là các biến bắt buộc phải đặt: script có hỏi tên project và hỏi xác nhận
+# phạm vi repo, gọi mà không có TTY thì nó đứng chờ mãi.
+wiring:
+  script: scripts/bootstrap.sh
+  env: [PROJECT_NAME, AUTO_CONFIRM]
+  passthrough: ["--refresh", "--upgrade", "--dry-run"]
+
+# Nguồn skill của pack này nằm ở bố cục của base template, không phẳng ở gốc pack.
+# Nhờ vậy script sync của NTAPP chạy trực tiếp trong thư mục pack mà không cần dựng
+# thư mục tạm nào.
+skillsRoot: .agent/skills
+skillsPrefixed: true
+
+# Skill đi theo project thay vì ra máy. Cả thư viện sống ở global, nên bản copy vào
+# project chỉ giữ đúng skill dùng để làm mới global về sau — không thì một máy mới,
+# global còn trống, sẽ không có đường nào tự đồng bộ mà không clone lại base template.
+skillsKeepInProject:
+  - NTAPP-sync-skills-global
+
+# Thứ chỉ vsaf đọc, không phải nội dung của project — loại khỏi bản copy giống
+# pack.yaml. Bốn file này là bản đối chiếu của vsaf cho mấy asset mà upstream đặt ở
+# scripts/templates/; script nối dây dùng bản của nó, nên copy vào project chỉ để lại
+# hai bản của cùng một thứ và không ai biết bản nào đang có hiệu lực.
+packOnly:
+  - config
+  - git-hooks
+  - hooks/settings.json
+  - rules/rules.json
+
+# Script đẩy skill + rule ra ngoài project. Cùng lý do như `wiring`: dùng bản của
+# NTAPP thay vì bản của vsaf, để hai bên không lệch nhau.
+globalSync:
+  script: scripts/sync-skills-to-user.sh
+  passthrough: ["--dry-run", "--skills-only", "--rules-only", "--clean"]
+
+# Where this pack's skills write their deliverables. `vsaf install` copies this into
+# the project's telemetry config, so the per-node output metrics count NTAPP's
+# documents as artifacts. Without it the engine default (`.vsaf/docs/`, the sdlc
+# pack's layout) applies and every NTAPP run reports artifacts_created: 0 while
+# still counting the same files under the generic file total.
+telemetry:
+  artifacts:
+    include:
+      - NTAPP-output/
+
+# The pack's own skills are reinstallable, so they live where git ignores them and
+# get mirrored to the other IDE directory.
+#
+# NOT `.agent/skills`: in a spec repo that path means something else — it is the
+# place for skills written for this one project, kept empty by default and meant to
+# be committed. Putting 55 reinstallable skills there would commit 9 MB of them.
+canonicalSkillsDir: .claude/skills
+
+# Paths this pack generates per machine, kept out of git. Two policies because a
+# spec repo keeps its canonical skills and its hand-edited config in version
+# control, while a code repo regenerates both on every machine.
+gitignore:
+  spec:
+    - .claude/skills/
+    - .cursor/skills/
+    - .claude/hooks
+    - "*.bak.*"
+  code:
+    - .agent/skills
+    - .claude/skills/
+    - .cursor/skills/
+    - .claude/hooks
+    - .claude/settings.json
+    - .bmm-config.yaml
+    # Regenerated per machine from the pack, like the config above. The spec repo
+    # commits its copy; a code repo receives one and has nothing to review in it.
+    - rules/
+    - "*.bak.*"
+
+# Writing outside the project needs the user to say yes, and everything written is
+# recorded in a manifest so it can be taken back without touching personal skills.
+global:
+  skillTargets:
+    - .claude/skills
+    - .gemini/config/skills
+    - .codeium/skills
+  ruleTarget: .claude/rules

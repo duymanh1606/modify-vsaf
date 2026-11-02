@@ -1,0 +1,39 @@
+# =============================================================================
+# RF Agent Skills — Python package versions (single source of truth)
+#
+# These packages are auto-installed by all 4 skills (rf-web, rf-android,
+# rf-ios, rf-api) at Step 0-env before writing any test code.
+# Install once per machine — subsequent projects reuse the same packages.
+#
+# System tools installed by each skill's Step 0-env (auto, idempotent):
+#   rf-web     → Google Chrome          (brew / winget)
+#   rf-android → Java, Android SDK/ADB, Node.js, Appium, UiAutomator2 driver
+#   rf-ios     → Node.js, Appium, XCUITest driver
+#                ⚠ Xcode must be installed manually from Mac App Store
+#   rf-api     → Python packages only (no system tools needed)
+#
+# To update a version: edit the line below, then re-run the relevant skill.
+# =============================================================================
+
+# Robot Framework core
+robotframework==7.2.2
+
+# Web
+robotframework-seleniumlibrary==6.7.1
+selenium==4.1.3
+webdriver-manager==4.0.2
+
+# Mobile (Android + iOS)
+robotframework-appiumlibrary==1.6
+Appium-Python-Client==2.2.0
+
+# REST API
+robotframework-requests==0.9.7
+requests==2.32.5
+RESTinstance==1.4.4
+robotframework-datadriver==1.11.2
+openpyxl==3.1.5
+
+# Tooling
+robotframework-tidy==4.16.0
+PyYAML==6.0.2

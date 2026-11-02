@@ -1,0 +1,1 @@
+{"version":3,"file":"event-log.d.ts","sourceRoot":"","sources":["../../src/store/event-log.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,YAAY,CAAC;AAEhD,qBAAa,QAAQ;IACnB,OAAO,CAAC,QAAQ,CAAC,QAAQ,CAAS;gBAEtB,MAAM,EAAE,MAAM;IAI1B,MAAM,CAAC,KAAK,EAAE,IAAI,CAAC,aAAa,EAAE,WAAW,CAAC,GAAG,IAAI;IAQrD,OAAO,IAAI,aAAa,EAAE;CAQ3B"}

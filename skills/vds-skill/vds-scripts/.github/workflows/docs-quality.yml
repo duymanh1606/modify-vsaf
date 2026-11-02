@@ -1,0 +1,59 @@
+name: Docs Quality Gate
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'vds_cli/src/vds_cli/docs_cmd.py'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync dependencies
+        run: uv sync --all-packages
+
+      - name: Run docs quality score
+        run: |
+          uv run --project vds_cli python -c "
+          import json, sys
+          from pathlib import Path
+          from vds_cli.docs_cmd import score_all_docs
+          result = score_all_docs(Path('.'))
+          print(json.dumps(result, indent=2))
+          if result['average'] < 0.6:
+              print(f'::error::Doc quality average {result[\"average\"]} below threshold 0.6')
+              sys.exit(1)
+          low = [d for d, s in result['docs'].items() if s['total'] < 0.5]
+          if low:
+              print(f'::error::{len(low)} docs score below 0.5:')
+              for doc in low:
+                  print(f'  - {doc}')
+              sys.exit(1)
+          print('✅ Docs quality gate passed')
+          "
+
+      - name: Run docs validate
+        run: |
+          uv run --project vds_cli python -c "
+          import sys
+          from pathlib import Path
+          from vds_cli.docs_cmd import validate_docs
+          issues = validate_docs(Path('.'), check_vi=True, check_diataxis=True, cross_repo=True, check_orchestrators=True, check_skills=True)
+          if issues:
+              print(f'::error::Docs validation failed with {len(issues)} issues')
+              for i in issues[:10]:
+                  print(f'  [{i.check}] {i.message}')
+              sys.exit(1)
+          print('✅ Docs validation passed')
+          "

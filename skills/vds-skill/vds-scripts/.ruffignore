@@ -1,0 +1,3 @@
+# Ruff ignore patterns (gitignore-style)
+# Intentional non-compliant fixtures that cause E902 syntax errors
+**/python-noncompliant/**

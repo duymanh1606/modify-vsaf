@@ -1,0 +1,102 @@
+name: master-sdlc
+description: "Full SDLC pipeline — Discovery → PRD → Architecture → SRS → Test Design → Implement → Review → Feature Complete → Ship"
+nodes:
+  - id: discovery
+    command: sdlc-discovery
+    workspace: false
+  - id: prd
+    command: sdlc-prd
+    depends_on: [discovery]
+    workspace: false
+    context: fresh
+  - id: prd-gate
+    prompt: |
+      Human gate for the PRD. Output of node "prd": $prd.output
+      Locate the PRD file it produced (.vsaf/docs/features/*/02-prd.md), summarize
+      the key points for the user, and ask whether they approve (collect feedback
+      if not). If approved: set the PRD file's gate line to
+      "## Gate: APPROVED by <user> on <date>" (replace a PENDING gate if present),
+      then output exactly: APPROVED. If rejected: output exactly:
+      REJECTED — <user feedback>.
+    depends_on: [prd]
+    workspace: false
+  - id: architecture
+    command: sdlc-architecture
+    depends_on: [prd-gate]
+    workspace: false
+    context: fresh
+  - id: srs
+    command: sdlc-srs
+    depends_on: [architecture]
+    workspace: false
+    context: fresh
+  - id: srs-gate
+    prompt: |
+      Human gate for the SRS. Output of node "srs": $srs.output
+      Locate the SRS file it produced (.vsaf/docs/features/*/05-srs.md), summarize
+      the key points for the user, and ask whether they approve (collect feedback
+      if not). If approved: set the SRS file's gate line to
+      "## Gate: APPROVED by <user> on <date>" (replace a PENDING gate if present),
+      then output exactly: APPROVED. If rejected: output exactly:
+      REJECTED — <user feedback>.
+    depends_on: [srs]
+    workspace: false
+  - id: test-design
+    command: sdlc-test-design
+    depends_on: [srs-gate]
+    workspace: false
+    context: fresh
+  - id: implement
+    command: sdlc-implement
+    depends_on: [test-design]
+  - id: test-gate
+    bash: |
+      TEST_CMD='$CONFIG.test_command'
+      case "$TEST_CMD" in *CONFIG.test_command*|'') echo "ERROR: test_command not set in .vsaf/config.yaml — run /sdlc-onboard-code or set it (e.g. test_command: npm test)"; exit 1;; esac
+      $CONFIG.test_command 2>&1
+    depends_on: [implement]
+    loop:
+      on_fail: implement
+      max_retries: 3
+      inject_error: true
+  - id: review
+    command: sdlc-review
+    depends_on: [test-gate]
+    workspace: false
+    context: fresh
+  - id: drift-check
+    command: sdlc-drift-check
+    depends_on: [review]
+    workspace: false
+    context: fresh
+  - id: review-gate
+    prompt: |
+      Human gate for the code review. Output of node "review": $review.output
+      Locate the review file it produced (.vsaf/docs/features/*/08-review.md),
+      summarize the verdict and any MUST FIX / SHOULD FIX items for the user, and
+      ask whether they approve (collect feedback if not). If approved: set the
+      review file's gate line to "## Gate: APPROVED by <user> on <date>" (replace
+      a PENDING gate if present), then output exactly: APPROVED. If rejected:
+      output exactly: REJECTED — <user feedback>.
+    depends_on: [review, drift-check]
+    workspace: false
+  - id: e2e
+    prompt: |
+      Chạy E2E cho feature vừa implement (tích hợp rf-agentskills). Xác định feature từ
+      .vsaf/docs/features/* (thư mục mới nhất), rồi chạy skill sdlc-e2e cho feature đó
+      (platform web mặc định): guard SRS → domain-docs → test-scenarios (sinh E2E TC) →
+      rf-web/rf-api (+rf-db) → jenkins (nếu có). Nếu chưa có app chạy được / thiếu credential,
+      DỪNG ở bước đã sinh test case E2E, ghi rõ lý do, KHÔNG làm fail cả pipeline.
+      Output: đã sinh E2E test case gì, chạy tới đâu, kết quả.
+    depends_on: [review-gate]
+    workspace: false
+  - id: complete
+    command: sdlc-feature-complete
+    depends_on: [e2e]
+    workspace: false
+    context: fresh
+  - id: ship
+    command: sdlc-ship
+    depends_on: [complete]
+    workspace: false
+    context: fresh

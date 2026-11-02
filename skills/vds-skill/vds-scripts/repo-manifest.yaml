@@ -1,0 +1,380 @@
+repositories:
+  - name: app-config
+    path: DOPS-project/app-config
+    project: dops
+    branch: master
+
+  - name: ekyc-business
+    path: EKYC-project/ekyc-business
+    project: ekyc
+    branch: release
+
+  - name: ekyc-service
+    path: EKYC-project/ekyc-service
+    project: ekyc
+    branch: release
+
+  - name: insurance-authentication-sync-process
+    path: INSURANCE-project/insurance-authentication-sync-process
+    project: insurance
+    branch: release
+
+  - name: insurance-auto-underwriting-process
+    path: INSURANCE-project/insurance-auto-underwriting-process
+    project: insurance
+    branch: release
+
+  - name: insurance-centralized-sync-service
+    path: INSURANCE-project/insurance-centralized-sync-service
+    project: insurance
+    branch: release
+
+  - name: insurance-claim-business
+    path: INSURANCE-project/insurance-claim-business
+    project: insurance
+    branch: release
+
+  - name: insurance-cms-be
+    path: INSURANCE-project/insurance-cms-be
+    project: insurance
+    branch: release
+
+  - name: insurance-common
+    path: INSURANCE-project/insurance-common
+    project: insurance
+    branch: release
+
+  - name: insurance-customer-business
+    path: INSURANCE-project/insurance-customer-business
+    project: insurance
+    branch: release
+
+  - name: insurance-customer-webview
+    path: INSURANCE-project/insurance-customer-webview
+    project: insurance
+    branch: release
+
+  - name: insurance-document
+    path: INSURANCE-project/insurance-document
+    project: insurance
+    branch: release
+
+  - name: insurance-insuremo-common
+    path: INSURANCE-project/insurance-insuremo-common
+    project: insurance
+    branch: release
+
+  - name: insurance-insurer-service
+    path: INSURANCE-project/insurance-insurer-service
+    project: insurance
+    branch: release
+
+  - name: insurance-job-scheduler
+    path: INSURANCE-project/insurance-job-scheduler
+    project: insurance
+    branch: release
+
+  - name: insurance-notification-spi
+    path: INSURANCE-project/insurance-notification-spi
+    project: insurance
+    branch: release
+
+  - name: insurance-ocr-service
+    path: INSURANCE-project/insurance-ocr-service
+    project: insurance
+    branch: release
+
+  - name: insurance-orchestrator
+    path: INSURANCE-project/insurance-orchestrator
+    project: insurance
+    branch: release
+
+  - name: insurance-payment-service
+    path: INSURANCE-project/insurance-payment-service
+    project: insurance
+    branch: release
+
+  - name: insurance-policy-business
+    path: INSURANCE-project/insurance-policy-business
+    project: insurance
+    branch: release
+
+  - name: insurance-promotion-business
+    path: INSURANCE-project/insurance-promotion-business
+    project: insurance
+    branch: release
+
+  - name: insurance-proposal-business
+    path: INSURANCE-project/insurance-proposal-business
+    project: insurance
+    branch: release
+
+  - name: insurance-reconcile-process
+    path: INSURANCE-project/insurance-reconcile-process
+    project: insurance
+    branch: release
+
+  - name: insurance-renewal-process
+    path: INSURANCE-project/insurance-renewal-process
+    project: insurance
+    branch: release
+
+  - name: insurance-socialized-insurance-service
+    path: INSURANCE-project/insurance-socialized-insurance-service
+    project: insurance
+    branch: release
+
+  - name: insurance-timeout-process
+    path: INSURANCE-project/insurance-timeout-process
+    project: insurance
+    branch: release
+
+  - name: insuremo-embedded-rule
+    path: INSURANCE-project/insuremo-embedded-rule
+    project: insurance
+    branch: release
+
+  - name: vds-scripts
+    path: WHO-project/vds-scripts
+    project: who
+    branch: master
+
+  - name: vds-skills
+    path: WHO-project/vds-skills
+    project: who
+    branch: master
+
+  - name: document-management
+    path: LEP-project/document-management
+    project: lep
+    branch: release
+
+  - name: document-mgmt
+    path: LEP-project/document-mgmt
+    project: lep
+    branch: release
+
+  - name: document-mgmt-service
+    path: LEP-project/document-mgmt-service
+    project: lep
+    branch: release
+
+  - name: file-management
+    path: LEP-project/file-management
+    project: lep
+    branch: release
+
+  - name: lending-application-service
+    path: LEP-project/lending-application-service
+    project: lep
+    branch: release
+
+  - name: lending-basecode
+    path: LEP-project/lending-basecode
+    project: lep
+    branch: release
+
+  - name: lending-channel-mgmt
+    path: LEP-project/lending-channel-mgmt
+    project: lep
+    branch: release
+
+  - name: lending-cms-be
+    path: LEP-project/lending-cms-be
+    project: lep
+    branch: release
+
+  - name: lending-cms-fe
+    path: LEP-project/lending-cms-fe
+    project: lep
+    branch: release
+
+  - name: lending-customer-screening-service
+    path: LEP-project/lending-customer-screening-service
+    project: lep
+    branch: release
+
+  - name: lending-customer-service
+    path: LEP-project/lending-customer-service
+    project: lep
+    branch: release
+
+  - name: lending-decision-service
+    path: LEP-project/lending-decision-service
+    project: lep
+    branch: release
+
+  - name: lending-ekyc-business
+    path: LEP-project/lending-ekyc-business
+    project: lep
+    branch: release
+
+  - name: lending-ekyc-service
+    path: LEP-project/lending-ekyc-service
+    project: lep
+    branch: release
+
+  - name: lending-event-backbone
+    path: LEP-project/lending-event-backbone
+    project: lep
+    branch: release
+
+  - name: lending-lender-process
+    path: LEP-project/lending-lender-process
+    project: lep
+    branch: release
+
+  - name: lending-lender-service
+    path: LEP-project/lending-lender-service
+    project: lep
+    branch: release
+
+  - name: lending-limit-mgmt
+    path: LEP-project/lending-limit-mgmt
+    project: lep
+    branch: release
+
+  - name: lending-miniapp-fe
+    path: LEP-project/lending-miniapp-fe
+    project: lep
+    branch: release
+
+  - name: lending-notification-service
+    path: LEP-project/lending-notification-service
+    project: lep
+    branch: release
+
+  - name: lending-payment-service
+    path: LEP-project/lending-payment-service
+    project: lep
+    branch: release
+
+  - name: lending-product-mgmt
+    path: LEP-project/lending-product-mgmt
+    project: lep
+    branch: release
+
+  - name: lending-recommendation-service
+    path: LEP-project/lending-recommendation-service
+    project: lep
+    branch: release
+
+  - name: lending-reconcile-service
+    path: LEP-project/lending-reconcile-service
+    project: lep
+    branch: release
+
+  - name: lending-refund-service
+    path: LEP-project/lending-refund-service
+    project: lep
+    branch: release
+
+  - name: lending-reminder-process
+    path: LEP-project/lending-reminder-process
+    project: lep
+    branch: release
+
+  - name: lending-schedule-mgmt
+    path: LEP-project/lending-schedule-mgmt
+    project: lep
+    branch: release
+
+  - name: lending-scoring-service
+    path: LEP-project/lending-scoring-service
+    project: lep
+    branch: release
+
+  - name: lending-servicing-service
+    path: LEP-project/lending-servicing-service
+    project: lep
+    branch: release
+
+  - name: lending-timeout-service
+    path: LEP-project/lending-timeout-service
+    project: lep
+    branch: release
+
+  - name: lending-transaction-mgmt
+    path: LEP-project/lending-transaction-mgmt
+    project: lep
+    branch: release
+
+  - name: lending-transformer-service
+    path: LEP-project/lending-transformer-service
+    project: lep
+    branch: release
+
+  - name: viettelpaypro_ios
+    path: LEP-project/viettelpaypro_ios
+    project: lep
+    branch: release
+
+  - name: saving-account
+    path: SAVING-project/saving-account
+    project: saving
+    branch: release
+
+  - name: saving-business
+    path: SAVING-project/saving-business
+    project: saving
+    branch: release
+
+  - name: saving-features-management
+    path: SAVING-project/saving-features-management
+    project: saving
+    branch: release
+
+  - name: saving-job-management
+    path: SAVING-project/saving-job-management
+    project: saving
+    branch: release
+
+  - name: saving-kafka-service
+    path: SAVING-project/saving-kafka-service
+    project: saving
+    branch: release
+
+  - name: saving-order
+    path: SAVING-project/saving-order
+    project: saving
+    branch: release
+
+  - name: saving-promotion
+    path: SAVING-project/saving-promotion
+    project: saving
+    branch: release
+
+  - name: saving-reconile-process
+    path: SAVING-project/saving-reconile-process
+    project: saving
+    branch: release
+
+  - name: saving-refund-process
+    path: SAVING-project/saving-refund-process
+    project: saving
+    branch: release
+
+  - name: saving-spi
+    path: SAVING-project/saving-spi
+    project: saving
+    branch: release
+
+  - name: saving-sync-process
+    path: SAVING-project/saving-sync-process
+    project: saving
+    branch: release
+
+  - name: saving-timeout-process
+    path: SAVING-project/saving-timeout-process
+    project: saving
+    branch: release
+
+  - name: saving-transaction
+    path: SAVING-project/saving-transaction
+    project: saving
+    branch: release
+
+  - name: insurance-orchestrator-camunda-8
+    path: INSURANCE-project/insurance-orchestrator-camunda-8
+    project: insurance
+    branch: master

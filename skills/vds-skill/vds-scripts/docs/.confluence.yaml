@@ -1,0 +1,157 @@
+bitbucket:
+  base_url: http://bitbucket.digital.vn
+  project: WHO
+  server: internal
+pages:
+- description: Top-level navigation hub linking to all repos and child pages
+  lang: en
+  page_id: '98997962'
+  source_files:
+  - AGENTS.md
+  - llms.txt
+  template: navigation_hub
+  title: WHO-Project Ecosystem Documentation
+  type: navigation_hub
+- bitbucket_links:
+  - label: vds-scripts README
+    path: README.md
+  - label: Bootstrap Guide
+    path: docs/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md
+  description: Step-by-step setup for new developers
+  lang: en
+  page_id: '98997963'
+  source_files:
+  - AGENTS.md
+  - README.md
+  template: installation_guide
+  title: Ecosystem Installation Guide
+  type: hybrid_guide
+- bitbucket_links:
+  - label: Full CLI Reference
+    path: docs/agents/reference/cli-commands.md
+  - label: Orchestrator Architecture
+    path: docs/agents/reference/orchestrator-architecture.md
+  description: CLI surface, orchestrators, testing rules
+  lang: en
+  page_id: '98997964'
+  source_files:
+  - AGENTS.md
+  - docs/agents/reference/cli-commands.md
+  template: quick_reference
+  title: vds-scripts Quick Reference
+  type: quick_reference
+- bitbucket_links:
+  - label: Full Registry
+    path: registry.yaml
+  - label: Add a Skill Guide
+    path: docs/agents/how-to/add-a-skill.md
+  description: Skill registry, authoring workflow, alignment
+  lang: en
+  page_id: '98997965'
+  repo: vds-skills
+  source_files:
+  - AGENTS.md
+  - registry.yaml
+  template: quick_reference
+  title: vds-skills Quick Reference
+  type: quick_reference
+- bitbucket_links:
+  - label: Packaging Guide
+    path: README.md
+  - label: Deploy Script
+    path: scripts/deploy.sh
+  description: Hooks, plugins, deploy workflow
+  lang: en
+  page_id: '98997966'
+  source_files:
+  - AGENTS.md
+  - README.md
+  template: quick_reference
+  title: vds-claude-plugins Quick Reference
+  type: quick_reference
+- description: Auto-generated validation and freshness status
+  generated: true
+  lang: en
+  page_id: '98997968'
+  source_files:
+  - docs/agents/reference/health-dashboard.md
+  - docs/.freshness.yaml
+  template: health_dashboard
+  title: Documentation Health Dashboard
+  type: health_dashboard
+- bitbucket_links:
+  - label: Tài liệu vds-scripts
+    path: docs/vi/agents/README.md
+  - label: Hướng dẫn cài đặt
+    path: docs/vi/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md
+  description: Cài đặt hệ sinh thái WHO-project
+  lang: vi
+  page_id: '99846963'
+  source_files:
+  - AGENTS.vi.md
+  - docs/vi/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md
+  template: installation_guide
+  title: Hướng dẫn cài đặt hệ sinh thái
+  type: hybrid_guide
+- bitbucket_links:
+  - label: Tài liệu vds-scripts
+    path: docs/vi/agents/README.md
+  - label: Hướng dẫn sử dụng vds-ai-memory
+    path: docs/vi/agents/how-to/02-using-vds-ai-memory.md
+  description: Tài liệu tham khảo CLI
+  lang: vi
+  page_id: '99846964'
+  source_files:
+  - AGENTS.vi.md
+  template: quick_reference
+  title: Tài liệu tham khảo vds-scripts
+  type: quick_reference
+- bitbucket_links:
+  - label: Registry Đầy đủ
+    path: registry.yaml
+  - label: Hướng dẫn Thêm Skill
+    path: docs/vi/agents/how-to/add-a-skill.md
+  description: Registry và workflow
+  lang: vi
+  page_id: '99846965'
+  repo: vds-skills
+  source_files:
+  - AGENTS.vi.md
+  - registry.yaml
+  template: quick_reference
+  title: Tài liệu tham khảo vds-skills
+  type: quick_reference
+- bitbucket_links:
+  - label: Packaging Guide
+    path: README.md
+  - label: Deploy Script
+    path: scripts/deploy.sh
+  description: Hook, plugin và quy trình deploy
+  lang: vi
+  page_id: '99846966'
+  source_files:
+  - AGENTS.vi.md
+  - README.md
+  template: quick_reference
+  title: Tài liệu tham khảo vds-claude-plugins
+  type: quick_reference
+parent_page_id: '57250660'
+repos:
+- active: true
+  description: Core WHO scripts — CLI, orchestrators, validation
+  name: vds-scripts
+  slug: vds-scripts
+- active: true
+  description: Skill registry and authoring framework
+  name: vds-skills
+  slug: vds-skills
+- active: false
+  description: vds-claude-plugins merged into vds-skills (2026-04-22). Content maintained in vds-skills repo.
+  name: vds-claude-plugins
+  slug: vds-claude-plugins
+- active: false
+  description: AI memory system (active, tracked separately at .gpt-5.4/specs/vds-ai-memory/)
+  name: vds-ai-memory
+  slug: vds-ai-memory
+space_key: TTCN24
+confluence_url: http://confluence.digital.vn/display/TTCN24/WHO-Project+Ecosystem+Documentation

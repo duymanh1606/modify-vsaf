@@ -1,0 +1,51 @@
+[project]
+name = "vds-agent-core"
+version = "0.10.0"
+description = "VDS shared agent infrastructure — LLM, config, skills, agentic loop"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.3.0",
+    "structlog>=25.5.0",
+    "httpx>=0.28.1",
+    "pydantic-ai>=1.63.0",
+    "vds-cli-common",
+    "pyyaml>=6.0",  # profiles.py YAML loading
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-timeout>=2.3",
+    "pytest-mock>=3.14",
+]
+litellm = ["litellm>=1.0"]  # Wave 2 (TSK-W2.1)
+langgraph = ["langgraph>=1.0.9", "langgraph-checkpoint>=4.0.0"]
+# vds-scheduler v0.2.0 (ADR-DCP-1):
+# `workflows` extra brings in the DBOS + LangGraph runtime needed by
+# `vds_agent_core.workflows.langgraph_runner` (relocated from scheduler).
+# Audit and scheduler orchestrators install with [workflows].
+workflows = [
+    "dbos>=2.19.0,<3",
+    "langgraph>=1.1.9,<2",
+    "langgraph-checkpoint>=4.0.2,<5",
+]
+dspy = ["dspy-ai>=3.1.3"]
+cohere = ["cohere>=5.0"]
+voyage = ["voyageai>=0.2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+vds-cli-common = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vds_agent_core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+timeout = 60

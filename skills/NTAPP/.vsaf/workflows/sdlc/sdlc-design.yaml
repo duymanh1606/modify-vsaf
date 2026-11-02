@@ -1,0 +1,14 @@
+name: sdlc-design
+description: "Sub-flow: Architecture → SRS — design solution and write detailed spec"
+
+nodes:
+  - id: architecture
+    description: "Architecture: design solution architecture and write ADR + epic breakdown"
+    command: sdlc-architecture
+    workspace: false
+
+  - id: srs
+    description: "SRS: write Software Requirements Specification with API contracts"
+    command: sdlc-srs
+    depends_on: [architecture]
+    workspace: false

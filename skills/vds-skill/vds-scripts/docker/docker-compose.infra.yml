@@ -1,0 +1,276 @@
+# =============================================================================
+# VDS Shared Infrastructure Compose
+# =============================================================================
+# Version: 1.0.0
+# Phase: ecosystem-infrastructure-evolution P0
+# Created: 2026-04-25
+#
+# Shared infrastructure for all VDS orchestrators:
+#   - postgres: pgvector/pgvector:0.8.2-pg18 on port 5432
+#   - redis: redis:8.6.2-alpine on port 6379
+#   - qdrant: qdrant/qdrant:v1.17.1 on ports 6335/6336
+#
+# Environment File Loading Order:
+#   1. ~/.vds/.env (user-level credentials, loaded first)
+#   2. docker/infrastructure/.env (infra-specific config)
+#   3. Shell environment variables (${VAR:-default} syntax)
+#   4. docker compose -e overrides
+#
+# Port Allocation (VDS platform-wide):
+#   - 5432: vds-postgres (shared)
+#   - 6379: vds-redis (shared)
+#   - 6333-6334: vds-grepai-qdrant (existing grepai instance, do not reassign)
+#   - 6335-6336: vds-qdrant (VDS-internal mem0 instance)
+#
+# Usage:
+#   docker compose -f docker/docker-compose.infra.yml --profile infra up -d
+#   docker compose -f docker/docker-compose.infra.yml --profile full up -d
+# =============================================================================
+
+# Project identity anchor (memory: reference_compose_project_identity_anchor.md).
+# Without this, Compose derives the project name from the directory the file
+# lives in (i.e., "docker"), which fragments identity across worktrees. The
+# hybrid pattern is: top-level `name:` here + `-p vds-platform` in commands.
+name: vds-platform
+
+x-env-files: &env_files
+  - ${HOME}/.vds/.env
+
+# v2.15.15 (I5): bound JSON-file log driver to prevent unbounded disk growth.
+# Each service references this anchor via `logging: *logging-default`.
+# Default Docker JSON-file driver has NO size cap; long-lived containers
+# (postgres, scheduler, memory-api) can accumulate GB of logs over weeks.
+# v2.16.0: resource limits for multi-machine deployability. Override per-host
+# via VDS_*_CPU_LIMIT/MEM_LIMIT/CPU_RESERVE/MEM_RESERVE env vars
+# (see infrastructure/.env.template §Resource Overrides).
+x-logging-default: &logging-default
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + pgvector — Shared Infrastructure
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg18
+    container_name: vds-postgres
+    restart: unless-stopped
+    logging: *logging-default
+    env_file: *env_files
+    # NFR-2: Connection budget = 500 max_connections
+    # Budget: 20 audit × 15 = 300, 10 memory × 4 = 40, 4 celery × 3 = 12,
+    #         5 scheduler × 5 = 25, headroom = 123 (25% buffer)
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=500"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=256MB"
+      - "-c"
+      - "statement_timeout=60000"
+      - "-c"
+      - "idle_in_transaction_session_timeout=30000"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}
+      POSTGRES_DB: vds_platform
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_POSTGRES_CPU_LIMIT:-2.0}"
+          memory: "${VDS_POSTGRES_MEM_LIMIT:-2g}"
+        reservations:
+          cpus: "${VDS_POSTGRES_CPU_RESERVE:-1.0}"
+          memory: "${VDS_POSTGRES_MEM_RESERVE:-512m}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - vds_postgres_data:/var/lib/postgresql
+      - ./infrastructure/init-schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vds_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - vds
+
+  # ---------------------------------------------------------------------------
+  # Redis — Shared Infrastructure (Logical DB Separation)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8.6.2-alpine
+    container_name: vds-redis
+    restart: unless-stopped
+    logging: *logging-default
+    env_file: *env_files
+    command:
+      - "redis-server"
+      - "--port"
+      - "6379"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "512mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_REDIS_CPU_LIMIT:-1.0}"
+          memory: "${VDS_REDIS_MEM_LIMIT:-512m}"
+        reservations:
+          cpus: "${VDS_REDIS_CPU_RESERVE:-0.25}"
+          memory: "${VDS_REDIS_MEM_RESERVE:-128m}"
+    ports:
+      - "6379:6379"
+    volumes:
+      - vds_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vds
+
+  # ---------------------------------------------------------------------------
+  # Qdrant — VDS-internal Mem0 Vector Store
+  # ---------------------------------------------------------------------------
+  # Note: This is the VDS-internal Qdrant for mem0. The grepai Qdrant
+  # (vds-grepai-qdrant) runs on ports 6333/6334 and is separate.
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: vds-qdrant
+    restart: unless-stopped
+    logging: *logging-default
+    env_file: *env_files
+    ports:
+      - "6335:6333"
+      - "6336:6334"
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_QDRANT_CPU_LIMIT:-1.0}"
+          memory: "${VDS_QDRANT_MEM_LIMIT:-1g}"
+        reservations:
+          cpus: "${VDS_QDRANT_CPU_RESERVE:-0.5}"
+          memory: "${VDS_QDRANT_MEM_RESERVE:-256m}"
+    volumes:
+      - vds_qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vds
+
+  # ---------------------------------------------------------------------------
+  # PgBouncer — Tier 1.5 Connection Pooler (P8, ADR-INF-13 v2.15.3)
+  # ---------------------------------------------------------------------------
+  # Session-mode pooling for ALL VDS services. Per-database stanzas in
+  # /etc/pgbouncer/pgbouncer.ini pin search_path via connect_query.
+  #
+  # Why session mode (not transaction):
+  #   - DBOS LISTEN/NOTIFY (scheduler_orchestrator) requires session state
+  #   - audit_orchestrator/state/store.py uses session-scoped advisory locks
+  #     for corpus-refresh coordination (state/store.py:5265,5279)
+  #   - asyncpg statement_cache works at full size in session mode
+  #   - WITH HOLD cursors, temp tables, application_name all preserved
+  #
+  # Future R12 (deferred decision): after 90-day measurement via SHOW POOLS,
+  # promote memory/progress stanzas to pool_mode=transaction via per-database
+  # override IF sustained cl_waiting > 0. Audit + sched stay session permanently.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.1-p0
+    container_name: vds-pgbouncer
+    restart: unless-stopped
+    logging: *logging-default
+    env_file: *env_files
+    environment:
+      DB_HOST: vds-postgres
+      DB_PORT: "5432"
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: session                          # v2.15.3: uniform session mode (R12 future-decision for per-stanza tx-mode)
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "40"                     # generous cap; per-stanza override via pgbouncer.ini
+      MIN_POOL_SIZE: "5"                          # warm-pool floor for cold-start latency
+      MAX_PREPARED_STATEMENTS: "200"              # benign in session mode; useful when R12 promotes stanzas to tx mode
+      SERVER_RESET_QUERY: DISCARD ALL
+      SERVER_RESET_QUERY_ALWAYS: "0"              # session mode: reset only at client disconnect
+      SERVER_IDLE_TIMEOUT: "600"
+      SERVER_LIFETIME: "3600"
+      ADMIN_USERS: pgbouncer_admin
+      STATS_USERS: pgbouncer_stats
+      IGNORE_STARTUP_PARAMETERS: "options,extra_float_digits"
+      LOG_POOLER_ERRORS: "1"
+      STATS_PERIOD: "60"
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_PGBOUNCER_CPU_LIMIT:-0.5}"
+          memory: "${VDS_PGBOUNCER_MEM_LIMIT:-128m}"
+        reservations:
+          cpus: "${VDS_PGBOUNCER_CPU_RESERVE:-0.1}"
+          memory: "${VDS_PGBOUNCER_MEM_RESERVE:-32m}"
+    volumes:
+      # pgbouncer.ini is static config — :ro mount is correct.
+      - ./infrastructure/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      # userlist.txt — pgbouncer's entrypoint regenerates this from
+      # POSTGRES_USER/POSTGRES_PASSWORD env vars at startup. The :ro mount
+      # caused "Read-only file system" write errors and restart loops
+      # (35+ restarts blocking memory-api during Phase 224 verification).
+      # Default RW mount allows regeneration.
+      - ./infrastructure/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    ports:
+      - "6432:6432"                               # host:container — container listens on 6432 (per pgbouncer.ini), host exposes 6432
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true                            # Compose >= 2.20.0
+    healthcheck:
+      # Probe PgBouncer admin virtual database (NOT pg_isready which only
+      # confirms TCP listen, NOT SELECT 1 which routes to Postgres).
+      # `SHOW VERSION` is the lowest-overhead probe touching PgBouncer internals only.
+      test:
+        - CMD-SHELL
+        - |
+          PGCONNECT_TIMEOUT=3 PGPASSWORD=$$PGBOUNCER_ADMIN_PASSWORD \
+            psql -h 127.0.0.1 -p 6432 -U pgbouncer_admin -d pgbouncer -t -A -c 'SHOW VERSION;' || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - vds
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  vds:
+    driver: bridge
+    name: vds-internal
+
+# =============================================================================
+# Volumes
+# =============================================================================
+# All volumes are auto-created by compose on first `up` — no manual
+# `docker volume create` needed. Postgres init-schemas.sql runs via
+# docker-entrypoint-initdb.d and is idempotent, so re-creating the volume
+# is safe (schemas + roles are re-initialized, tables come from subsequent
+# alembic upgrade).
+volumes:
+  vds_postgres_data:
+  vds_redis_data:
+  vds_qdrant_data:

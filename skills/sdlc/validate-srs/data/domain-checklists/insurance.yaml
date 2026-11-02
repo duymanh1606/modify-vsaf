@@ -1,0 +1,110 @@
+# Insurance Domain-Specific Validation Checklist
+# Used by: step-v-08-risk-analysis.md (domain_patterns check)
+# Source: Vietnam insurance regulations + industry best practices
+
+policy_lifecycle:
+  - id: INS-PL-01
+    check: "Cooling-off period specified with exact days and refund calculation"
+    severity: HIGH
+    applies_to: [FR10]
+    regulation: "Thông tư 50/2017/TT-BTC"
+  - id: INS-PL-02
+    check: "Grace period for premium payment defined (typically 30-60 days)"
+    severity: HIGH
+    applies_to: [FR10]
+  - id: INS-PL-03
+    check: "Policy reinstatement rules after lapse (re-UW required?)"
+    severity: MEDIUM
+    applies_to: [FR10]
+  - id: INS-PL-04
+    check: "Endorsement effective date rules (retroactive allowed?)"
+    severity: MEDIUM
+    applies_to: [FR10]
+  - id: INS-PL-05
+    check: "Policy certificate must include: insurer name, coverage, exclusions, effective dates"
+    severity: HIGH
+    applies_to: [FR10]
+    regulation: "Nghị định 73/2016/NĐ-CP"
+
+claims_processing:
+  - id: INS-CL-01
+    check: "Subrogation/recovery rights specified after claim payment"
+    severity: MEDIUM
+    applies_to: [FR11]
+  - id: INS-CL-02
+    check: "Claims appeal/dispute process documented (right to appeal within N days)"
+    severity: HIGH
+    applies_to: [FR11]
+    regulation: "Thông tư 50/2017/TT-BTC"
+  - id: INS-CL-03
+    check: "Pre-existing condition exclusion handling for health products"
+    severity: HIGH
+    applies_to: [FR11]
+  - id: INS-CL-04
+    check: "Waiting period enforcement for claims (addon effective date check)"
+    severity: HIGH
+    applies_to: [FR11]
+  - id: INS-CL-05
+    check: "FNOL time limit specified (incident date to submission deadline)"
+    severity: MEDIUM
+    applies_to: [FR11]
+
+pricing_underwriting:
+  - id: INS-PU-01
+    check: "CTPL (bắt buộc TNDS) pricing follows regulated rate table per Nghị định 03"
+    severity: CRITICAL
+    applies_to: [FR5, FR6, FR8]
+    regulation: "Nghị định 03/2021/NĐ-CP"
+  - id: INS-PU-02
+    check: "UW decline reason codes are human-readable and actionable for customer"
+    severity: HIGH
+    applies_to: [FR8]
+  - id: INS-PU-03
+    check: "Anti-selection rules (e.g., health product age limits, pre-existing conditions)"
+    severity: HIGH
+    applies_to: [FR5, FR8]
+  - id: INS-PU-04
+    check: "Pricing fairness disclosure (explain factors affecting premium to customer)"
+    severity: MEDIUM
+    applies_to: [FR5]
+    regulation: "PDPA Vietnam"
+
+payment_settlement:
+  - id: INS-PS-01
+    check: "Premium refund calculation method specified (pro-rata, short-rate, full)"
+    severity: HIGH
+    applies_to: [FR9, FR10]
+  - id: INS-PS-02
+    check: "Take-rate / commission split transparency for regulatory reporting"
+    severity: MEDIUM
+    applies_to: [FR9, FR17]
+  - id: INS-PS-03
+    check: "Escrow model regulatory approval documented (ISA license requirement)"
+    severity: HIGH
+    applies_to: [FR9]
+
+compliance:
+  - id: INS-CP-01
+    check: "Data retention periods comply with Luật An ninh mạng (≥5 years for financial)"
+    severity: HIGH
+    applies_to: [FR14, FR15]
+    regulation: "Luật An ninh mạng 2018"
+  - id: INS-CP-02
+    check: "Cross-border data transfer restrictions documented (data residency Vietnam)"
+    severity: HIGH
+    applies_to: [FR15]
+    regulation: "Nghị định 13/2023/NĐ-CP (PDPA)"
+  - id: INS-CP-03
+    check: "Customer consent granularity matches PDPA requirements"
+    severity: HIGH
+    applies_to: [FR1, FR15]
+
+multi_tenant:
+  - id: INS-MT-01
+    check: "Insurer data isolation guaranteed (no cross-tenant data leakage)"
+    severity: CRITICAL
+    applies_to: [FR14]
+  - id: INS-MT-02
+    check: "Per-insurer product configuration does not affect other insurers"
+    severity: HIGH
+    applies_to: [FR6]

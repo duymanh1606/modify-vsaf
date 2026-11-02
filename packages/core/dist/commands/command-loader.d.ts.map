@@ -1,0 +1,1 @@
+{"version":3,"file":"command-loader.d.ts","sourceRoot":"","sources":["../../src/commands/command-loader.ts"],"names":[],"mappings":"AAMA,MAAM,WAAW,OAAO;IACtB,IAAI,EAAE,MAAM,CAAC;IACb,WAAW,EAAE,MAAM,CAAC;IACpB,YAAY,CAAC,EAAE,MAAM,CAAC;IACtB,KAAK,CAAC,EAAE,MAAM,CAAC;IACf,IAAI,EAAE,MAAM,CAAC;CACd;AAED,wBAAgB,WAAW,CAAC,IAAI,EAAE,MAAM,EAAE,WAAW,EAAE,MAAM,GAAG,OAAO,CAsBtE"}

@@ -1,0 +1,62 @@
+.git
+**/.git
+**/.venv
+**/.venv.nosync
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.DS_Store
+**/node_modules
+**/dist
+**/build
+**/.cache
+**/.idea
+**/.vscode
+**/.cursor
+**/.zed
+**/.claude
+**/.gemini
+**/.qwen
+**/.lingma
+**/.tox
+**/.coverage
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.log
+# Auto-generated report output dirs (matches .gitignore intent)
+**/reports
+**/output
+# Source-tree exception: audit_orchestrator's `reports/` Python subpackage
+# is real source code, not generated output. Without this un-ignore,
+# hatchling's wheel build excludes it and audit imports fail at runtime.
+!audit_orchestrator/src/vds_audit_orchestrator/reports/
+!audit_orchestrator/src/vds_audit_orchestrator/reports/**
+# Source-tree exception: vds_agent_core's `output/` Python subpackage
+# (added 2026-04-30 via audit-scheduler-event-bus-decoupling v0.2.0).
+# Without this un-ignore, vds_agent_core/__init__.py imports
+# `from vds_agent_core.output import ...` fail at container runtime.
+!vds_agent_core/src/vds_agent_core/output/
+!vds_agent_core/src/vds_agent_core/output/**
+# Large binary files
+**/*.pdf
+**/*.zip
+**/*.tar.gz
+**/*.rar
+# Test files (not needed in container images)
+**/tests/
+# Documentation
+**/docs/
+# Data directories (mounted at runtime, not baked in)
+**/data/
+**/logs/
+# Temporary and backup files
+**/*.tmp
+**/*.bak
+**/*.backup
+**/*.swp
+**/*.swo
+*~
+# Graphify output
+**/graphify-out/

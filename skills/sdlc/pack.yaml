@@ -1,0 +1,100 @@
+name: sdlc
+version: 1.2.0
+description: Distributed Agentic SDLC — multi-machine, multi-repo, graph-based knowledge
+author: "@ngocsangairvds/vsaf"
+# Bản engine tối thiểu. Từ 6.15.0 engine mới biết kéo flow từ repo vsaf-workflow
+# và chạy file cài của chính flow. Phải để trong ngoặc kép — viết trần thì YAML đọc
+# dấu > theo cú pháp khác và gãy ngay lúc đọc file.
+requiresEngine: ">=6.15.0"
+
+
+skills:
+  # Setup
+  - setup
+
+  # Phase 0 — Onboarding
+  - init
+  - onboarding
+  - onboard-docs
+  - onboard-code
+
+  # Phase 1-9 — Main flow
+  - discovery
+  - prd
+  - architecture
+  - srs
+  # SRS authoring + validation (khôi phục từ 4.2.x; write-srs nâng lên v1.6.0)
+  - write-srs
+  - validate-srs
+  - test-design
+  - implement
+  - review
+  - feature-complete
+  - ship
+
+  # Hotfix flow
+  - hotfix-analyze
+  - hotfix-red
+  - hotfix-green
+  - hotfix-review
+
+  # Diagnostics
+  - sdlc-health
+  - drift-check
+
+# Bundled external skills — deployed WITHOUT pack prefix (as-is)
+bundled:
+  # Workflow runner — gives Claude the /vsaf <workflow> [args] entry point
+  - vsaf
+
+  # BMAD skills (17) — used by discovery, prd, architecture, srs, test-design, implement, review
+  - bmad-advanced-elicitation
+  - bmad-brainstorming
+  - bmad-domain-research
+  - bmad-prfaq
+  - bmad-create-prd
+  - bmad-validate-prd
+  - bmad-review-adversarial-general
+  - bmad-create-architecture
+  - bmad-create-epics-and-stories
+  - bmad-check-implementation-readiness
+  - bmad-agent-analyst
+  - bmad-review-edge-case-hunter
+  - bmad-code-review
+  - bmad-party-mode
+  - bmad-qa-generate-e2e-tests
+  - bmad-checkpoint-preview
+  - bmad-correct-course
+
+  # mattpocock skills (5) — lean alternative for bugfix/known-domain flows
+  - grill-me
+  - diagnose
+  - zoom-out
+  - tdd
+  - improve-codebase-architecture
+
+  # E2E track — rf-agentskills (Robot Framework product-E2E) + sdlc-e2e bridge
+  # sdlc-e2e wires an approved SRS → automation; invoked by master-sdlc e2e node.
+  # Workflow `workflows/automation-test.yaml` gọi các skill này qua node `command:`
+  # bằng tên KHÔNG tiền tố, nên chúng phải nằm ở `bundled:` chứ không phải `skills:`.
+  #
+  # 15 skill autotest-* dưới đây trùng tên với pack `autotest-skill` — hai bên do hai
+  # đội bảo trì khác nhau, cùng bắt nguồn từ AUT/rf-agentskills. Cài cả hai pack thì
+  # pack nào cài trước giữ chỗ, pack sau bị bỏ qua (trừ khi --force).
+  - sdlc-e2e
+  - autotest-project-docs
+  - autotest-scenarios
+  - autotest-strategy
+  - autotest-web
+  - autotest-web-best-practices
+  - autotest-api
+  - autotest-api-best-practices
+  - autotest-android
+  - autotest-android-best-practices
+  - autotest-ios
+  - autotest-ios-best-practices
+  - autotest-db
+  - autotest-results
+  - autotest-mcp-assist
+  - autotest-jenkins
+  - freso-domain-sample

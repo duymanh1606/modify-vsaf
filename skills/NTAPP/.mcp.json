@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "gitnexus": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "gitnexus",
+        "mcp"
+      ]
+    },
+    "vsaf": {
+      "type": "stdio",
+      "command": "vsaf",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

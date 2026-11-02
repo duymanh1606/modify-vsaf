@@ -1,0 +1,18 @@
+# TEST FIXTURE — chứng minh engine DỪNG khi loop cạn max_retries (không lặp vô hạn).
+# Không gọi LLM (chỉ bash). always-fail luôn exit 1 → loop về seed tối đa max_retries lần rồi engine phải FAIL & thoát.
+name: loop-exhaust-fixture
+description: "TEST — loop on_fail cạn max_retries phải kết thúc bằng failure, không treo."
+nodes:
+  - id: seed
+    description: "Node khởi đầu (luôn pass)"
+    bash: |
+      echo "seed-ok"
+  - id: always-fail
+    description: "Luôn fail để kích loop; đếm số lần thử qua marker file"
+    bash: |
+      echo "ATTEMPT $(date -u +%s%N)"
+      exit 1
+    depends_on: [seed]
+    loop:
+      on_fail: seed
+      max_retries: 2

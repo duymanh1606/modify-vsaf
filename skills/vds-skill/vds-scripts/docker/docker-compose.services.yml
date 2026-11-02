@@ -1,0 +1,425 @@
+# =============================================================================
+# VDS Tier 2 — Long-Running Service Compose
+# =============================================================================
+# Version: 2.0.0
+# Phase: ecosystem-infrastructure-evolution v2.13.x (WP-5.3)
+#
+# This file declares ONLY the long-running services (per ADR-INF-10):
+# memory-api, memory-worker, scheduler-orchestrator, multi-agent-orchestrator.
+# CLI orchestrators (audit, pdf, progress, db-query) live in
+# `docker-compose.cli.yml` (Tier 3). Earlier versions of this file mixed both
+# patterns under "services" which caused CLI containers to restart-loop after
+# each clean exit.
+#
+# NOTE (v2.15.10 / ADR-INF-10): memory-migrate, audit-migrate, and
+# progress-migrate were retired — migrations are now an explicit operator
+# step (`docker compose run --rm --no-deps <service> alembic upgrade head`).
+# The Tier 3B auto-init one-shot sub-shape no longer exists.  See ADR.md
+# Tier 3 Sub-Shapes section for the updated table.
+#
+# Environment File Loading Order:
+
+#   1. ~/.vds/.env (user-level credentials, loaded first)
+#   2. docker/infrastructure/.env (infra-specific config)
+#   3. Shell environment variables (${VAR:-default} syntax)
+#   4. docker compose -e overrides
+#
+# Usage:
+#   docker compose -p vds-platform \
+#                  -f docker/docker-compose.infra.yml \
+#                  -f docker/docker-compose.services.yml \
+#                  -f docker/docker-compose.cli.yml \
+#                  --profile memory up -d
+#
+# Profiles (long-running only):
+#   - memory      : memory-api + memory-worker (FastAPI + Celery)
+#   - scheduler   : scheduler-orchestrator (DBOS-managed FastAPI; needs VDS_SCHEDULER_ENABLED=true)
+#   - multi-agent : multi-agent-orchestrator (FastAPI agent coordinator)
+#   - full        : all of the above
+#
+# For CLI profiles (audit/pdf/progress/db-query/vds-cli/mcp-server) and the
+# three migrate one-shots load `docker-compose.cli.yml` instead.
+# =============================================================================
+
+# Must match docker-compose.infra.yml + docker-compose.cli.yml so all three
+# files form ONE compose project (ADR-INF-7 hybrid identity anchor).
+name: vds-platform
+
+x-env-files: &env_files
+  - ${HOME}/.vds/.env
+
+# v2.15.15 (I5): bound JSON-file log driver to prevent unbounded disk growth.
+# Long-running services accumulate logs over weeks; default has no size cap.
+x-logging-default: &logging-default
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Operator note (v2.0.17 N.52 consolidation): Docker Compose's `${VAR}` YAML
+# substitution reads from compose's own env (the invoking shell or
+# `--env-file`/`docker/.env`), NOT from the per-service `env_file:` block.
+# To make `${VDS_POSTGRES_PASSWORD}` (and similar) resolve at compose-up time
+# WITHOUT duplicating values in two locations, a developer-local symlink
+# `docker/.env -> ~/.vds/.env` is required (gitignored). One canonical
+# `~/.vds/.env` then feeds BOTH compose-time interpolation AND the in-container
+# env_file. To bootstrap on a fresh checkout: `ln -sf ~/.vds/.env docker/.env`.
+
+services:
+  # ---------------------------------------------------------------------------
+  # Memory API Service (FastAPI + uvicorn; long-running)
+  # ---------------------------------------------------------------------------
+  memory-api:
+    profiles: ["memory", "full"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: memory_orchestrator/Dockerfile
+    image: vds-memory:${VERSION:-1.0.0}
+    container_name: vds-memory-api
+    depends_on:
+      # Post-v2.15.10: migrations are an explicit operator step
+      # (`docker compose run --rm --no-deps memory-api alembic -c memory_orchestrator/alembic.ini upgrade head`),
+      # not an auto-init dependency. Tier 3B sub-shape retired per ADR-INF-10 v2.15.10.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    environment:
+      # Memory schema DSN — Phase 224 single-DSN deploy model.
+      # `+psycopg` driver suffix forces SQLAlchemy to use psycopg v3 (the only
+      # driver installed; pyproject:42 ships `psycopg[binary]>=3.3.3` and
+      # psycopg2 is intentionally absent from the slim image). The entrypoint's
+      # python+psycopg probe strips the dialect prefix before psycopg.connect
+      # (which is libpq-native). Read by alembic env.py via `resolve_database_url`
+      # and by the runtime FastAPI app — both accept the +psycopg suffix.
+      #
+      # No MIGRATION_DATABASE_URL override needed: Phase 224 ADR retires the
+      # two-DSN workaround. The entrypoint never reads MIGRATION_DATABASE_URL,
+      # so any value leaking from ~/.vds/.env is harmless.
+      DATABASE_URL: postgresql+psycopg://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_memory
+
+      # PostgreSQL connection — all values env-driven from ~/.vds/.env (sourced by
+      # the operator before `up`). Defaults match the shared `vds-postgres` service
+      # per ADR-INF-10 so the stack works out-of-the-box for fresh clones.
+      # P8 v2.15.4: routes through vds-pgbouncer:6432 (session-mode) per ADR-INF-13.
+      # POSTGRES_DB is the PgBouncer stanza name (vds_memory), NOT the underlying
+      # database (which IS vds_platform; the stanza maps to it transparently).
+      POSTGRES_HOST: ${POSTGRES_HOST:-vds-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-vds_memory}
+
+      # Redis connections with explicit DB suffixes
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/${REDIS_CELERY_BROKER_DB:-0}
+      REDIS_MEMORY_CACHE_DB: ${REDIS_MEMORY_CACHE_DB:-1}
+      REDIS_SESSION_STORE_DB: ${REDIS_SESSION_STORE_DB:-2}
+      REDIS_ANALYTICS_DB: ${REDIS_ANALYTICS_DB:-3}
+      REDIS_SEARCH_CACHE_DB: ${REDIS_SEARCH_CACHE_DB:-4}
+      REDIS_RATE_LIMITING_DB: ${REDIS_RATE_LIMITING_DB:-5}
+      REDIS_TOOL_DISCOVERY_DB: ${REDIS_TOOL_DISCOVERY_DB:-9}
+
+      # Qdrant for mem0
+      MEM0_QDRANT_HOST: qdrant
+      MEM0_QDRANT_PORT: 6333
+
+      # Service config — required by memory_orchestrator config validator
+      SERVICE_NAME: "VDS AI Memory Service"
+      SERVICE_ENVIRONMENT: ${SERVICE_ENVIRONMENT:-development}
+      SERVICE_JWT_SECRET_KEY: ${SERVICE_JWT_SECRET_KEY:?required — set in ~/.vds/.env (generate with `openssl rand -hex 32`)}
+      MCP_ENABLE_MCP_SERVER: ${MCP_ENABLE_MCP_SERVER:-false}
+
+      # Phase 225 (FR-225.12, ADR-98): embeddings via host Ollama through
+      # vds_agent_core EmbeddingClient. Legacy EMBEDDING_* vars from env_file
+      # remain supported for one cycle (back-compat).
+      VDS_AGENT_CORE_EMBED__PROVIDER: ollama
+      VDS_AGENT_CORE_EMBED__BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      # Linux portability — macOS auto-resolves host.docker.internal.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_MEMORY_API_CPU_LIMIT:-1.0}"
+          memory: "${VDS_MEMORY_API_MEM_LIMIT:-1g}"
+        reservations:
+          cpus: "${VDS_MEMORY_API_CPU_RESERVE:-0.5}"
+          memory: "${VDS_MEMORY_API_MEM_RESERVE:-256m}"
+    volumes:
+      - memory_logs:/app/logs
+    networks:
+      - vds
+    restart: unless-stopped
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # Memory Worker Service (Celery; long-running)
+  # ---------------------------------------------------------------------------
+  memory-worker:
+    profiles: ["memory", "full"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: memory_orchestrator/Dockerfile
+    image: vds-memory:${VERSION:-1.0.0}
+    container_name: vds-memory-worker
+    depends_on:
+      # Post-v2.15.10: migrations are an explicit operator step
+      # (`docker compose run --rm --no-deps memory-worker alembic -c memory_orchestrator/alembic.ini upgrade head`),
+      # not an auto-init dependency. Tier 3B sub-shape retired per ADR-INF-10 v2.15.10.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    environment:
+      # Memory schema DSN — Phase 224 single-DSN deploy model (matches memory-api).
+      # `+psycopg` driver suffix forces SQLAlchemy v3 (only driver installed).
+      # Entrypoint's python+psycopg probe strips the prefix for psycopg.connect.
+      # No MIGRATION_DATABASE_URL override needed — see memory-api comment.
+      DATABASE_URL: postgresql+psycopg://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_memory
+
+      # PostgreSQL connection — all values env-driven from ~/.vds/.env.
+      # P8 v2.15.4: routes through vds-pgbouncer:6432 (session-mode) per ADR-INF-13.
+      # POSTGRES_DB is the PgBouncer stanza name (vds_memory), NOT the underlying
+      # database (which IS vds_platform; the stanza maps to it transparently).
+      POSTGRES_HOST: ${POSTGRES_HOST:-vds-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-vds_memory}
+
+      # Redis with explicit Celery broker DB (REDIS_HOST/PORT also required by config validator)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/${REDIS_CELERY_BROKER_DB:-0}
+      REDIS_TOOL_DISCOVERY_DB: ${REDIS_TOOL_DISCOVERY_DB:-9}
+
+      # Service config — required by memory_orchestrator config validator
+      SERVICE_NAME: "VDS AI Memory Worker"
+      SERVICE_ENVIRONMENT: ${SERVICE_ENVIRONMENT:-development}
+      SERVICE_JWT_SECRET_KEY: ${SERVICE_JWT_SECRET_KEY:?required — set in ~/.vds/.env (generate with `openssl rand -hex 32`)}
+      MCP_ENABLE_MCP_SERVER: ${MCP_ENABLE_MCP_SERVER:-false}
+
+      # Worker config
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-4}
+
+      # Phase 225 (FR-225.12, ADR-98): embeddings via host Ollama through
+      # vds_agent_core EmbeddingClient. Legacy EMBEDDING_* vars from env_file
+      # remain supported for one cycle (back-compat).
+      VDS_AGENT_CORE_EMBED__PROVIDER: ollama
+      VDS_AGENT_CORE_EMBED__BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      # Linux portability — macOS auto-resolves host.docker.internal.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - memory_logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_MEMORY_WORKER_CPU_LIMIT:-1.0}"
+          memory: "${VDS_MEMORY_WORKER_MEM_LIMIT:-1g}"
+        reservations:
+          cpus: "${VDS_MEMORY_WORKER_CPU_RESERVE:-0.25}"
+          memory: "${VDS_MEMORY_WORKER_MEM_RESERVE:-128m}"
+    networks:
+      - vds
+    restart: unless-stopped
+    logging: *logging-default
+    healthcheck:
+      # Worker has no HTTP endpoint; use Celery ping instead of the
+      # image's default `curl /health` (which is for memory-api).
+      test: ["CMD-SHELL", "/opt/venv/bin/celery -A vds_memory_orchestrator.service.services.memory_evolution.celery_entrypoint:celery_app inspect ping -t 5 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    command:
+      - /opt/venv/bin/celery
+      - -A
+      - vds_memory_orchestrator.service.services.memory_evolution.celery_entrypoint:celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency
+      - "${CELERY_WORKER_CONCURRENCY:-4}"
+
+  # ---------------------------------------------------------------------------
+  # Multi-Agent Orchestrator Service (FastAPI; long-running)
+  # ---------------------------------------------------------------------------
+  multi-agent-orchestrator:
+    profiles: ["multi-agent", "full"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: multi_agent_orchestrator/Dockerfile
+    image: vds-multi-agent:${VERSION:-1.0.0}
+    container_name: vds-multi-agent-orchestrator
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Multi-agent uses Redis DB 6 (FR-3 allocation)
+      REDIS_URL: redis://redis:6379/6
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 6
+
+      # Memory service backfill (allows multi-agent to discover memory-api)
+      VDS_AI_MEMORY_BASE_URL: ${VDS_AI_MEMORY_BASE_URL:-http://memory-api:8000}
+    ports:
+      - "${MULTI_AGENT_PORT:-8003}:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_MULTI_AGENT_CPU_LIMIT:-1.0}"
+          memory: "${VDS_MULTI_AGENT_MEM_LIMIT:-512m}"
+        reservations:
+          cpus: "${VDS_MULTI_AGENT_CPU_RESERVE:-0.25}"
+          memory: "${VDS_MULTI_AGENT_MEM_RESERVE:-128m}"
+    networks:
+      - vds
+    restart: unless-stopped
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # Scheduler Orchestrator Service (DBOS-managed FastAPI; long-running)
+  # ---------------------------------------------------------------------------
+  scheduler-orchestrator:
+    profiles: ["scheduler", "full"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: scheduler_orchestrator/Dockerfile
+    image: vds-scheduler:${VERSION:-1.0.0}
+    container_name: vds-scheduler-orchestrator
+    # Phase 217 (ADR-79): added memory-api depends_on so scheduler waits for
+    # the HTTP target to be healthy before starting (prevents first-tick 503s).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      memory-api:
+        condition: service_healthy
+    # env_file. The `environment:` block ONLY overrides the hostname portion of
+    # DSNs (the env_file uses `localhost` which resolves from host-side
+    # uvicorn/CLI; inside the container we need Docker-DNS `postgres`/`redis`).
+    # Everything else (passwords, ports, kill switch, app version) is sourced
+    # exclusively from ~/.vds/.env.
+    environment:
+      DATABASE_URL: postgresql://postgres:${VDS_POSTGRES_PASSWORD}@vds-pgbouncer:6432/vds_sched
+      MIGRATION_DATABASE_URL: postgresql://postgres:${VDS_POSTGRES_PASSWORD}@vds-pgbouncer:6432/vds_sched
+      REDIS_URL: redis://redis:6379/8
+      # Phase 217 (ADR-79): scheduler workflows now POST to memory-api via
+      # httpx (no more memory_orchestrator import). VDS_MEMORY_API_URL is the
+      # base URL the workflows hit; VDS_SCHEDULER_SERVICE_TOKEN is the
+      # service-account JWT that the workflows pass as Authorization: Bearer
+      # against memory-api's auth-gated /api/v1/maintenance/* endpoints.
+      # Phase 213 SERVICE_NAME/SERVICE_ENVIRONMENT/REDIS_HOST/MCP/POSTGRES_*
+      # env vars REMOVED — they were only needed when memory_orchestrator's
+      # Config() ran at scheduler import time. With Phase 217 HTTP refactor,
+      # the scheduler no longer imports memory_orchestrator at all.
+      # Hardcoded — must point at Docker DNS (`memory-api:8000`), not the
+      # host-side `localhost:8010` that ~/.vds/.env defines for operator CLI.
+      # Same pattern as POSTGRES_HOST=postgres override in pre-Phase-217 setup.
+      VDS_MEMORY_API_URL: http://memory-api:8000
+      VDS_SCHEDULER_SERVICE_TOKEN: ${VDS_SCHEDULER_SERVICE_TOKEN:-}
+    ports:
+      - "${SCHEDULER_PORT:-8005}:8005"
+    volumes:
+      # H4 fix (v2.15.18): EcosystemReportConfig.resolved_report_dir resolves to
+      # /opt/reports/ecosystem inside the container (monorepo_root falls back to
+      # /opt when the .git marker is absent). /opt is root-owned and not writable
+      # by the scheduler user (uid=999). A named volume mounted at /opt/reports
+      # provides a writable, persistent surface for daily report files.
+      - vds_scheduler_reports:/opt/reports
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_SCHEDULER_CPU_LIMIT:-1.0}"
+          memory: "${VDS_SCHEDULER_MEM_LIMIT:-512m}"
+        reservations:
+          cpus: "${VDS_SCHEDULER_CPU_RESERVE:-0.25}"
+          memory: "${VDS_SCHEDULER_MEM_RESERVE:-128m}"
+    networks:
+      - vds
+    restart: unless-stopped
+    logging: *logging-default
+    # v2.0.17 N.53: healthcheck directive — without this, `docker compose up -d`
+    # returns Started while the entrypoint is still running alembic upgrade +
+    # DBOS launch. start_period gives 60s for the entrypoint sequence to complete
+    # before health probes start counting against retry budget.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Phase 200 ADR-63: opt-in maintenance profile; activate via COMPOSE_PROFILES=maintenance docker compose up memory-maintenance
+  # ---------------------------------------------------------------------------
+  memory-maintenance:
+    profiles: ["maintenance"]
+    env_file: *env_files
+    image: vds-memory:${VERSION:-1.0.0}
+    container_name: vds-memory-maintenance
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Memory schema DSN (same interpolation pattern as memory-api)
+      DATABASE_URL: postgresql+psycopg://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_memory
+
+      # PostgreSQL connection — sourced from ~/.vds/.env via env_file; defaults
+      # match the shared `vds-postgres` service per ADR-INF-10.
+      # P8 v2.15.4: routes through vds-pgbouncer:6432 (session-mode) per ADR-INF-13.
+      # POSTGRES_DB is the PgBouncer stanza name (vds_memory), NOT the underlying
+      # database (which IS vds_platform; the stanza maps to it transparently).
+      POSTGRES_HOST: ${POSTGRES_HOST:-vds-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-vds_memory}
+
+      # Service config — required by memory_orchestrator config validator
+      SERVICE_NAME: "VDS AI Memory Maintenance"
+      SERVICE_ENVIRONMENT: ${SERVICE_ENVIRONMENT:-development}
+      SERVICE_JWT_SECRET_KEY: ${SERVICE_JWT_SECRET_KEY:?required — set in ~/.vds/.env (generate with `openssl rand -hex 32`)}
+      MCP_ENABLE_MCP_SERVER: ${MCP_ENABLE_MCP_SERVER:-false}
+    deploy:
+      resources:
+        limits:
+          cpus: "${VDS_MAINTENANCE_CPU_LIMIT:-0.5}"
+          memory: "${VDS_MAINTENANCE_MEM_LIMIT:-256m}"
+    networks:
+      - vds
+    restart: "no"
+    logging: *logging-default
+    command:
+      - /opt/venv/bin/python
+      - -m
+      - vds_memory_orchestrator.cli
+      - entity-backfill
+      - --confirm
+      - --limit
+      - "100"
+
+# =============================================================================
+# Volumes (Tier 2 only — CLI-specific volumes live in docker-compose.cli.yml)
+# =============================================================================
+volumes:
+  memory_logs:
+    name: vds-memory-logs
+  vds_scheduler_reports:
+    name: vds-scheduler-reports

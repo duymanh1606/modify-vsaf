@@ -1,0 +1,7 @@
+name: drift-check-only
+description: "Single-node drift check against existing .vsaf/docs artifacts. Run after docs exist + committed, and after editing/committing an upstream doc, to see drift scored on Langfuse without regenerating any doc."
+nodes:
+  - id: drift-check
+    command: sdlc-drift-check
+    workspace: false
+    context: fresh

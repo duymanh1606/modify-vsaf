@@ -1,0 +1,633 @@
+# Workflow — bug-fix-batch (lane bug-fixing co he thong; 1..N bug)
+#
+# Nhan 1..N bug tu file BUGS-*.md HOAC tu ma Jira -> localize + gom nhom parallel-safe -> HITL duyet plan
+# -> fix theo 3 dot tren branch/worktree rieng (foundation tuan tu -> group doc lap song song -> chuoi phu thuoc tuan tu)
+# -> verify + de xuat merge order -> HITL duyet noi dung Jira -> resolve Jira.
+# KHONG merge vao main, KHONG push, KHONG flip trang thai bug tu dong (file bug read-mostly).
+#
+# Chay: /NTAPP-vsaf-run NTAPP/bug-fix-batch   (hoac: vsaf run NTAPP/bug-fix-batch --args "<...>")
+#   $ARGUMENTS = nguon bug, chuyen NGUYEN VAN cho node plan-bugs. Bon dang:
+#     "--all"  |  "SLICE-01,SLICE-02"  |  "<path>/BUGS-SLICE-01.md"  |  "TTCNSPQT-5205" hoac URL /browse/<KEY>
+#
+# ── PHAN VAI (moi thu duoi day co DUNG MOT chu so huu) ────────────────────────────────────────────────
+#   NTAPP-fix-bug        intake adapter ca 2 nguon: nap bug, localize, classify. Node plan-bugs dung PHAN
+#                        plan-only (step-01, headless) — khong fix, khong flip status, khong tao branch.
+#   NTAPP-bug-fix-engine policy "fix dung 1 bug tren 1 unit": root-cause, DD gate, ATDD gate, pre-commit 9 rule,
+#                        verify, self-review. 3 node fix goi engine 1 lan/bug. Sua cach fix thi sua ENGINE.
+#   workflow nay         orchestration: gom nhom, cach ly git, thu tu 3 dot, 2 cong HITL, merge order.
+#   doc-sync chung       CHI node integrate-verify (§2). Engine da bump DD per-unit luc fix; batch-demo khong sync.
+#   ghi Jira             CHI node resolve-jira, sau cong approve-jira, chi bug fix thanh cong. Moi node khac
+#                        duoc DOC Jira (get-issue) tu do, KHONG duoc update-issue/transition/comment.
+#
+# ── HAI NGUON BUG (bug_source; plan-bugs §0 tu nhan dang) ─────────────────────────────────────────────
+#   file  mo ta doc tu block trong BUGS-*.md; jira_key lay tu dong "- **Jira:**" (co the null).
+#   jira  mo ta + anh doc thang tu Jira; tra nguoc BUGS-*.md de lay them WBS unit/Severity neu co.
+#   LUU Y: bug_source=file KHONG dong nghia "khong co Jira" — block trong file van co the mang jira_key.
+#   Cai quyet dinh co phai resolve Jira la DU LIEU (jira_key), khong phai cach go lenh.
+#
+# ── CO CHE ENGINE (6 dieu, node comment ben duoi chi tro ve day, khong giai thich lai) ────────────────
+#   E1 Noi suy: $ARGUMENTS + ${ITEM} duoc thay. `$VAR` TRON cua shell duoc GIU NGUYEN -> dung cho bien shell;
+#      TRANH `${VAR}` cho bien shell (bi thay thanh rong). Trong `bash:` node $ARGUMENTS bi shell-escape ->
+#      phai gan BARE (`x=$ARGUMENTS`) roi dung bien.
+#   E2 HITL gate = `bash:` node exit 1 -> run PAUSE. Nguoi dung duyet roi resume -> engine CHAY LAI node do
+#      (idempotent). Ca 2 cong dung co che nay, chu ky = marker file CHUA CHECKSUM cua ban duoc duyet.
+#   E3 Bash node chay bang /bin/sh. macOS la bash nhung Debian/Ubuntu la dash -> CAM `set -o pipefail` / `set -u`
+#      (dash chet ngay dong 1, cong HITL khong bao gio qua duoc). Kiem tuong minh bang if/exit.
+#      Luat D cua hooks/tests/workflow_bash_lint.py chan tai pham.
+#   E4 Fanout KHONG co rao cho giua cac item: engine ban toi `max_concurrency` sub-task CUNG LUC theo thu tu glob
+#      va khong cho item truoc xong. Tien to NN_ chi doi duoc thu tu PHAT LENH, khong phai thu tu HOAN THANH.
+#      => group phu thuoc nhau TUYET DOI khong duoc nam chung 1 fanout mc>1. Chi mc:1 la rao chan that.
+#   E5 Fanout tren thu muc RONG = no-op success -> batch toan needs-investigation van chay xuoi.
+#   E6 `workspace: true` fork SPEC repo -> vo dung khi code o repo sibling. Vi vay workspace:false toan bo;
+#      node fix tu quan git trong CODE repo (git worktree add ngay trong code repo do).
+#
+# ── STATE FILES ──────────────────────────────────────────────────────────────────────────────────────
+#   NTAPP-output/.current-bug-batch              1 dong: duong dan batch dir (bug-batches/<date>-<slug>/)
+#   NTAPP-output/.work/bug-groups/{foundation,parallel,serial}/NN_<gid>
+#                                                marker per-group, chia 3 lan theo 3 node fix (xem E4).
+#                                                NN_ de sort; node fanout strip `^[0-9]+_` lay lai gid.
+#                                                needs-investigation KHONG ghi marker. Path co dinh => 1 batch/lan/repo.
+#   <batch>/bug-groups.yaml                      nguon su that dieu khien buoc fix (ky o cong 1)
+#   <batch>/reviews/<gid>.md                     finding + ESCALATE + nguyen lieu Jira per-group; node fix BUOC ghi, ke ca khi hong
+#   <batch>/APPROVED                             chu ky cong 1 = checksum bug-groups.yaml
+#   <batch>/jira-resolve-plan.md                 preview noi dung se ghi Jira (integrate-verify sinh)
+#   <batch>/APPROVED-JIRA                        chu ky cong 2 = checksum jira-resolve-plan.md
+#   <batch>/jira-resolve-result.md               ket qua ghi Jira that (resolve-jira sinh)
+
+name: bug-fix-batch
+description: "Nhan N bug tu file BUGS-*.md hoac tu ma Jira -> localize + gom nhom parallel-safe -> HITL duyet -> fix song song tren branch rieng -> HITL duyet roi resolve Jira. --args <bug file spec | ma Jira>"
+# model = DEFAULT cho AI node; node "re" (resolve-groups/resolve-jira/batch-demo) override sonnet.
+# Engine emit hint qua needs_ai.nodes[].model; glue /NTAPP-vsaf-run dispatch 1 subagent/node kem --model do.
+model: opus
+# KHONG khai `inputs:` — engine ep JSON khi co inputs; $ARGUMENTS chi raw string.
+nodes:
+  - id: plan-bugs
+    description: "Stage batch-intake — NTAPP-fix-bug (plan-only headless) localize+classify bug tu file BUGS-*.md hoac tu Jira, roi gom nhom parallel-safe (DRAFT)"
+    # Headless: khong hoi HITL (subagent khong co nguoi) -> ghi thang artifact DRAFT; nguoi duyet o approve-plan.
+    prompt: |
+      Batch bug intake. $ARGUMENTS = dac ta nguon bug. MUC TIEU: localize + classify moi bug DANG MO, roi gom
+      thanh nhom parallel-safe (plan-only). KHONG fix code, KHONG tao branch, KHONG ghi Jira, khong log secret.
+
+      0. NHAN DANG bug_source:
+         - Token khop `^[A-Z][A-Z0-9]+-[0-9]+$` HOAC URL chua "/browse/<KEY>" -> jira, jira_keys = [...]
+           (bo tien to "jira" neu nguoi dung go kem).
+         - Con lai (path .md / slice id / --all / rong) -> file.
+         - TRON ca hai dang -> DUNG, bao loi (khong tu doan; chay 2 batch rieng).
+
+      0a. bug_source = file — resolve bug file(s). KHONG ghep path, KHONG glob bang tay:
+         python3 hooks/lib/slice_paths.py --resolve <SLICE-ID> --json   (Windows: do `py -3` -> `python3` -> `python`)
+         -> `bugs_dir`, `bug_files[]`, `warnings[]`. Exit 0 = tra duoc (list RONG = that su khong co); 3 = KHONG tra
+         duoc -> DUNG va doc `warnings`; 2 = ma slice sai dang. Helper khop theo ranh gioi + chuan hoa zero-pad +
+         nhan ca bo cuc phang lan bo cuc thu muc feature; glob tay khop theo tien to nen SLICE-2 bat luon SLICE-20/21.
+         - path *.md   -> dung truc tiep (khong can helper).
+         - slice id    -> lay `bug_files[]` cua dung slice do. Mot slice co the co NHIEU file (BUGS-<slice>-<account>.md,
+                          nhieu nguoi log) -> nhan HET, khong lay file dau tien.
+         - "--all"     -> lay `bugs_dir` roi liet ke DE QUY moi BUGS-*.md duoi do (rg --glob / find; shell glob khong
+                          xuong thu muc con nen se bo sot file da chuyen vao {bugs_dir}/<feature>/).
+         Khong resolve duoc file nao ton tai -> DUNG, bao loi (dung doan slice).
+         Bug key dang <SLICE>-<account>-BUG-NN (vd SLICE-20-dinhtq8-BUG-01) — account nam trong key nen key duy nhat
+         toan project du moi file danh so rieng.
+         Moi block: bat luon jira_key tu dong "- **Jira:** [<KEY>](<url>) — Type: <Bug|Issue>" -> ghi <KEY> + <Type>;
+         khong co dong nay -> jira_key = null.
+
+      0b. bug_source = jira — nap bug thang tu Jira (CHI DOC):
+         jira_helper = <skills-dir>/NTAPP-log-bug/jira_bug.py. Khong thay -> DUNG, bao nguoi dung chay
+         ./scripts/sync-skills-to-user.sh --skills-only. Loi credential (thieu env.md) -> DUNG, tro toi env.example.md
+         trong skill dir NTAPP-log-bug.
+         Voi MOI ma trong jira_keys:
+           python -X utf8 <jira_helper> get-issue --key <KEY> \
+             --extra-fields customfield_13241,customfield_13406,customfield_15800,customfield_15801 \
+             --download-dir <scratchpad>/jira-att
+         Lay: type / status / summary / description (DAY la mo ta bug — dung THAY mo ta trong file) / reporter /
+         assignee / attachments[].saved (Read cac anh do) / transitions / extra (Bug Type dang co).
+         - description la Jira wiki markup: "!file.png!" = anh, "[^file.zip]" = file dinh kem, "*text*" = bold.
+           Attachment khong phai anh (.zip/.log) -> bo qua, khong giai nen.
+         - DANG MO = status KHONG thuoc {Resolved, Closed, Cancelled, Done}. Issue da dong -> KHONG bo qua im lang:
+           ghi vao bao cao + xep kind needs-investigation de nguoi dung quyet o cong 1.
+         - TRA NGUOC file log (tra theo MA JIRA nen phai quet de quy, khong dung shell glob):
+             rg -l --glob 'BUGS-*.md' "<KEY>" <bugs_dir>          # <bugs_dir> tu slice_paths.py, khong ghep tay
+           co match  -> do la source_file + block tuong ung; lay them WBS unit / Severity / anh local tu block do,
+                        nhung MO TA van uu tien ban tren Jira (moi hon).
+           khong match -> source_file = null (chi fix + resolve Jira). KHONG tu tao file log moi.
+         - Khong tra nguoc duoc file log -> bug key cua batch = chinh ma Jira.
+
+      1. LOCALIZE + CLASSIFY — Invoke: Skill(skill="NTAPP-fix-bug") o CHE DO HEADLESS PLAN-ONLY. Bat buoc; khong
+         thay the bang cach tu doc file bug / tu goi get-issue roi tu phan loai.
+         Chi chay logic step-01: parse block theo "## <SLICE>-<account>-BUG-NN — <title>", loc trang thai
+         ∈ {Open, In Progress, Reopened}, doc anh, map bug -> WBS unit -> code repo + file ung vien, classify
+         severity/atdd_class/lane theo §4b. DUNG LAI truoc step-02 (khong fix, khong doi status, khong dung o HITL
+         gate cua skill — viec duyet chuyen sang node approve-plan).
+         bug_source = jira -> BO QUA phan parse file cua step-01 §1a, dung du lieu da nap o §0b lam dau vao localize;
+         phan map unit -> repo -> file va classify §4b lam Y HET.
+         Gom ket qua per-bug: key / summary / source_file (null neu bug chi co tren Jira) / jira_key / jira_type
+         (Bug|Issue; null neu khong co jira_key) / unit(s) / repo / files / dirs / severity / atdd_class / lane /
+         localization_evidence (Tier).
+      2. GOM NHOM parallel-safe (lop batch dung tren localize — NTAPP-fix-bug KHONG lo phan nay):
+         - hot_nodes = unit/file bi >1 bug cham HOAC kernel dung chung (CORE-*/INT-*/WGT dung chung).
+         - kind: foundation (sua hot node, doi contract/kernel -> phai land TRUOC) | parallel (file/dir DISJOINT)
+           | serial (phu thuoc ket qua group khac) | needs-investigation (Tier 3/4 / NEEDS-INFO / khong tim ra file
+           -> KHONG auto-fix).
+         - 1 bug -> 1 nhom la degenerate hop le.
+      3. GHI ARTIFACT DRAFT (headless, khong hoi xac nhan) vao
+         NTAPP-output/Stage_5_Build_Verify/bug-batches/<YYYY-MM-DD>-<slug>/:
+           - bug-groups.yaml — moi group: gid, branch (ten de xuat), kind, containers, units, hot_nodes, depends_on,
+             must_rebase_after, parallel_safe_with, slices / slice_cohesion (neu ca group thuoc 1 slice), va
+             bugs[]: {key, summary, source_file, jira_key, jira_type, units, files, dirs, severity, atdd_class, lane,
+             localization_evidence}. source_file / jira_key / jira_type ghi ro `null` khi khong co.
+           - bug-grouping-plan.md — ban nguoi doc: bang bug (PHAI co cot Jira, "—" neu khong co), thu tu 3 dot, ma tran, co.
+           - conflict-matrix.md — bang chung overlap tung cap bug/group.
+         Cap nhat bug-batches/_unit-path-map.yaml (containers[].repo) neu hoc mapping unit->repo moi (khong xoa entry cu).
+      4. Ghi duong dan batch dir vao NTAPP-output/.current-bug-batch (dung 1 dong, khong newline thua; mkdir -p truoc).
+         XOA CHU KY CU: batch dir da ton tai tu lan truoc (trung ngay + trung slug) va co APPROVED / APPROVED-JIRA
+         -> xoa CA HAI ngay sau khi ghi de bug-groups.yaml. Do la chu ky cho BAN PLAN CU. (Ca 2 cong con doi chieu
+         checksum nen day la lop thu hai, nhung xoa som thi thong bao cho nguoi dung ro hon.)
+      5. BAT BIEN o node nay: file bug READ-MOSTLY (khong flip trang thai, khong sua mo ta — flip deferred den sau
+         merge, xem batch-demo). Jira READ-ONLY (chi get-issue).
+      6. Bao cao: bug_source, so bug dang mo, so group theo kind, so bug co jira_key (se resolve o cuoi batch),
+         bug NEEDS-INFO + cau hoi can nguoi tra loi, duong dan batch dir.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-fix-bug | yes|no | <ly do neu no>
+      (chi chay step-01 plan-only van tinh la yes — day la cach dung dung cua node nay).
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    workspace: false
+
+  - id: approve-plan
+    description: "HITL GATE 1 — halt cho den khi nguoi dung duyet plan (ghi checksum vao <batch>/APPROVED) roi resume"
+    # Vi sao BAT BUOC: cac node sau TAO BRANCH + SUA CODE THAT. Grouping sai = fix nham cho / merge conflict.
+    # Vi sao chu ky phai CHUA CHECKSUM chu khong chi kiem "file co ton tai": batch dir ten <ngay>-<slug> nen chay lai
+    #   cung ngay cung slice se roi trung thu muc cu, APPROVED lan truoc con do -> plan MOI chua ai doc di thang sang
+    #   node sua code that. Co che gate + chu ky: xem E2. Khong dung `set -euo pipefail`: xem E3.
+    bash: |
+      BATCH_FILE="NTAPP-output/.current-bug-batch"
+      if [ ! -f "$BATCH_FILE" ]; then
+        echo "ERROR: khong thay $BATCH_FILE — node plan-bugs chua ghi batch dir." >&2
+        exit 1
+      fi
+      BATCH_DIR=$(head -n1 "$BATCH_FILE" | sed 's/[[:space:]]*$//')
+      PLAN="$BATCH_DIR/bug-groups.yaml"
+      if [ -z "$BATCH_DIR" ] || [ ! -f "$PLAN" ]; then
+        echo "ERROR: khong thay [$PLAN] — plan chua duoc sinh." >&2
+        exit 1
+      fi
+      SUM=$(shasum -a 256 "$PLAN" 2>/dev/null | cut -c1-16)
+      if [ -z "$SUM" ]; then SUM=$(sha256sum "$PLAN" 2>/dev/null | cut -c1-16); fi
+      if [ -z "$SUM" ]; then
+        echo "ERROR: khong tinh duoc checksum cua $PLAN (may thieu ca shasum lan sha256sum)." >&2
+        echo "Khong the xac minh chu ky duyet khop ban plan nao -> KHONG mo cong." >&2
+        exit 1
+      fi
+      MARK="$BATCH_DIR/APPROVED"
+      if [ -f "$MARK" ] && grep -q "$SUM" "$MARK" 2>/dev/null; then
+        echo "OK: plan da duoc duyet dung ban nay (checksum $SUM). Tiep tuc sang buoc fix."
+        exit 0
+      fi
+      if [ -f "$MARK" ]; then
+        echo "CANH BAO: co $MARK nhung checksum trong do KHONG khop plan hien tai ($SUM)." >&2
+        echo "Nghia la bug-groups.yaml da thay doi SAU khi duyet (chay lai cung ngay, hoac vua sua tay)." >&2
+        echo "Chu ky cu het hieu luc — phai doc lai va duyet lai ban moi." >&2
+      fi
+      cat >&2 <<EOF
+
+      ================= HITL GATE 1: DUYET KE HOACH GOM NHOM BUG =================
+      Da sinh ke hoach (plan-only). Mo va kiem tra 3 file:
+        $BATCH_DIR/bug-grouping-plan.md   (ban nguoi doc — bang bug, cot Jira, thu tu, ma tran, co)
+        $BATCH_DIR/bug-groups.yaml        (nguon su that — se dieu khien buoc fix)
+        $BATCH_DIR/conflict-matrix.md     (bang chung overlap tung cap)
+
+      Can chot:
+        - Gom nhom + thu tu (foundation -> song song -> serial) da hop ly chua?
+        - Bug nao muon EP CHUNG / TACH nhom  -> sua truc tiep bug-groups.yaml.
+        - Bug kind: needs-investigation se KHONG duoc auto-fix (dung y — chua localize duoc).
+        - branch de xuat moi group hop ly chua? (co the doi trong bug-groups.yaml)
+        - Cot Jira: bug nao co ma Jira se duoc de xuat resolve o CUOI batch, qua mot gate rieng (chua ghi gi luc nay).
+
+      Khi dong y, DUYET (chu ky gan voi DUNG ban plan nay):
+        echo "$SUM" > "$MARK"
+        vsaf resume <runId>      # hoac slash: /NTAPP-vsaf-resume <runId>
+
+      Sua bug-groups.yaml sau khi duyet -> checksum doi -> cong dong lai, phai duyet lai. Do la chu y.
+      ===========================================================================
+      EOF
+      exit 1
+    depends_on: [plan-bugs]
+    workspace: false
+
+  - id: resolve-groups
+    description: "Tien xu ly FANOUT — doc bug-groups.yaml da duyet -> ghi marker per-group vao 3 lan (foundation/parallel/serial)"
+    model: sonnet
+    # Vi sao 3 thu muc chu khong 2: xem E4. Gop parallel+serial roi trong vao NN_ la SAI — group phu thuoc se
+    # `git worktree add -B b2 <path> b1` luc b1 chua co commit, git tra rc=0 va lang le base ve main, mat sach fix cua b1.
+    prompt: |
+      Doc plan da duyet de sinh danh sach GROUP lam input cho 3 node fanout fix.
+      1. BATCH_DIR = noi dung NTAPP-output/.current-bug-batch. Doc $BATCH_DIR/bug-groups.yaml.
+      2. rm -rf NTAPP-output/.work/bug-groups
+         mkdir -p NTAPP-output/.work/bug-groups/foundation NTAPP-output/.work/bug-groups/parallel NTAPP-output/.work/bug-groups/serial
+      3. Phan lan theo RANG BUOC THUC TE, khong chi theo field `kind`:
+           - kind: needs-investigation -> BO QUA (khong ghi marker; bao cao rieng o buoc verify).
+           - kind: foundation          -> foundation/
+           - CON LAI, xet depends_on / must_rebase_after, BO QUA tham chieu toi group foundation (node fix-foundation
+             chay xong truoc nen khong con la rang buoc):
+               * con tham chieu toi group KHAC cung dot -> serial/
+               * khong con tham chieu nao              -> parallel/
+           Khong chac -> xep serial/ (cham hon nhung khong bao gio sai base).
+      4. Ten marker = "<NN>_<gid>", file RONG, khong duoi mo rong (vd foundation/00_g-foundation ; parallel/01_g1 ;
+         serial/01_gA ; serial/02_gB). NN_ danh theo thu tu DEPENDENCY topo. Trong serial/ thu tu topo la BAT BUOC DUNG
+         (fix-serial chay mc:1 theo dung thu tu nay); trong parallel/ thu tu chi de doc cho de.
+      5. Bao cao: so group tung lan, so bug needs-investigation, thu tu marker, va voi moi group trong serial/ ghi ro
+         no phu thuoc group nao (de nguoi doc kiem lai).
+    depends_on: [approve-plan]
+    workspace: false
+
+  - id: fix-foundation
+    description: "Fix group FOUNDATION (fanout mc:1 tuan tu) — sua hot node (CORE-*/INT-*/WGT dung chung) TRUOC, tren branch rieng"
+    # mc:1 vi nhieu foundation co the cham cung repo kernel. base = main (land dau tien).
+    # MOT GROUP FAIL = CA BATCH DUNG, co y: engine aggregate fanout (1 item fail -> node cha failed -> cac node sau
+    #   khong chay). Group phia sau rebase LEN foundation; foundation hong ma chay tiep la fix tren nen sai.
+    #   Doi lai buoc D BAT BUOC ghi reviews/$GID.md truoc khi bao fail — fanout fresh-context, khong ghi ra file thi
+    #   cong viec da lam bay hoi.
+    fanout:
+      over: "NTAPP-output/.work/bug-groups/foundation/*"
+      as: GROUP
+      max_concurrency: 1
+    prompt: |
+      ITEM = ${ITEM} (path file marker). GID = ten file cua ITEM sau khi bo tien to `^[0-9]+_`
+      (vd "00_g-foundation" -> "g-foundation"). Chi xu ly DUNG group nay — KHONG loop group khac.
+      Context "Cross-iteration ledger" dau prompt = bai hoc batch truoc (bug pattern, hot-node hay vo).
+
+      A. NAP GROUP: BATCH_DIR = noi dung NTAPP-output/.current-bug-batch. Doc block group GID trong
+         $BATCH_DIR/bug-groups.yaml -> branch, containers, units, hot_nodes, bugs[].
+         Chi tiet tung bug theo nguon co san:
+           - source_file KHONG null -> mo block "## <key> — <title>" trong file BUGS-*.md do: mo ta / Ket qua mong doi
+             / Ket qua thuc te / anh (Read anh neu co).
+           - source_file null (bug chi co tren Jira) -> doc THANG tu Jira, CHI DOC:
+               python -X utf8 <jira_helper> get-issue --key <jira_key> --download-dir <scratchpad>/jira-att
+             lay description (Jira wiki markup: "!file.png!" = anh, "*text*" = bold) + Read anh trong attachments[].saved.
+             TUYET DOI KHONG update-issue / transition / comment (ghi Jira la viec cua node resolve-jira).
+      B. CACH LY GIT trong CODE repo (khong dung engine worktree — xem E6):
+         - Resolve repo path R cua container tu $BATCH_DIR/../_unit-path-map.yaml (containers[].repo, vd ../vada-frontend).
+           1 group foundation THUONG 1 container; neu >1 -> xu ly tung container, moi cai 1 branch cung ten.
+         - base = main. Tao worktree cach ly:
+             wt="$R/../.vsaf-bugfix/$GID"; mkdir -p "$R/../.vsaf-bugfix"
+             git -C "$R" worktree add -B <branch> "$wt" main
+           Moi edit/commit lam TRONG "$wt" (cd "$wt").
+      C. FIX — GRANULARITY = PER-BUG. Lap tung bug da localize CHAC CHAN (Tier 1/2) theo severity DESC (ngang severity
+         -> provider truoc consumer); MOI bug = 1 lan Invoke: Skill(skill="NTAPP-bug-fix-engine") (bat buoc, khong tu
+         sua bug). TUYET DOI KHONG gop nhieu bug vao 1 lan goi — nhet bugs[] chung se lan 2 nguyen nhan, mat 1
+         regression test mandatory, va fix-report khong map duoc ve tung bug key.
+         Truyen cho engine:
+           bug_context    = block CUA DUNG BUG NAY (key/summary/units/files/dirs/localization_evidence) + chi tiet da
+                            doc o buoc A + repo R; moi edit/commit trong "$wt".
+           lane / atdd_class = cua BUG NAY tu bug-groups.yaml (thieu -> engine classify).
+           severity       = field `severity` cua bug -> engine dung de ordering + fallback suy lane, khong bat gate.
+           commit_mode    = branch-commit   (commit tren <branch> trong "$wt"; KHONG push, KHONG merge main)
+           doc_sync_mode  = deferred        (fanout song song -> engine CHI emit doc-sync TODO; node integrate-verify
+                                             sync serial de tranh tranh ghi spec repo)
+         - Bug trai NHIEU unit -> VAN 1 bug = 1 lan goi (engine tu sua het cac diem). Trai nhieu CONTAINER -> goi engine
+           cho tung container cua chinh bug do (moi container 1 worktree/branch cung ten, buoc B).
+         - 2 bug cham CUNG unit -> loop tuan tu tren cung "$wt": bug dau bump DD, bug sau thay DD da co (idempotent).
+         Engine lo TOAN BO policy (khong lap o day): root-cause -> DD gate -> ATDD gate -> pre-commit 9 rule -> verify
+         bac cao nhat -> self-review inline. Dieu kien escalate (Tier 3/4, WBS gap khong bia id) + SKIP_PRECOMMIT chi
+         cho dien escalate: xem CEREMONY RESOLVER cua engine.
+      D. PERSIST REVIEW (hop dong dung chung cho ca 3 node fix) — fanout fresh-context nen khong ghi ra file la MAT:
+         resolve spec-root 1 lan tu $BATCH_DIR TRUOC khi cd "$wt"; mkdir -p "$BATCH_DIR/reviews";
+         ghi "$BATCH_DIR/reviews/$GID.md" bang DUONG DAN TUYET DOI:
+           - tieu de "## $GID — <branch>"
+           - moi bug 1 sub-heading "### <bug-key>": ceremony + verify-level + dd_version delta, roi cac finding
+             (1 dong/finding: "[severity] <file>:<line> — <mo ta> — (da-sua | con-lai)"). Khong co finding -> ghi "—".
+           - bug CO jira_key -> them 5 dong (NGUYEN LIEU cho resolve-jira; khong ghi ra day la mat):
+               "- jira_key: <KEY> | jira_type: <Bug|Issue>"
+               "- Nguyen nhan: <root-cause that su, 1-3 cau, lay tu ket qua root-cause cua engine, khong doan>"
+               "- Anh huong: <pham vi nguoi dung / nghiep vu bi anh huong, 1-2 cau>"
+               "- Giai phap: <da sua gi, o file/lop nao, 1-3 cau>"
+               "- Est: <so gio da bo ra, dang Nh vd 2h>"
+             Bug BLOCKER/ESCALATE -> van ghi jira_key nhung them "- jira_skip: BLOCKER" de resolve-jira loai ra.
+           - cuoi file: block ESCALATE.
+           - HONG GIUA CHUNG (loi khong sua noi / phai ESCALATE / het duong) -> VAN ghi file nay TRUOC khi ket thuc,
+             them "status: FAILED — <ly do ngan>" ngay duoi tieu de, liet ke bug nao xong bug nao chua, va commit da
+             land tren branch toi dau. TUYET DOI khong ket thuc trong im lang.
+         Bao cao: GID, branch, worktree path, bug da fix, ceremony da ap (lane/atdd_class/DD action), verify-level,
+         doc-sync TODO (deferred), duong dan reviews/$GID.md, so finding con lai, ESCALATE (neu co).
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-bug-fix-engine | yes|no | <so lan goi = so bug / ly do neu no>
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    depends_on: [resolve-groups]
+    workspace: false
+
+  - id: fix-parallel
+    description: "Fix group DOC LAP (fanout mc:5 song song) — moi group 1 branch/worktree rieng, base tu foundation hoac main"
+    # mc:5 an toan vi (a) khac container = khac repo, (b) cung container thi plan da bao dam disjoint file,
+    # (c) moi group 1 git worktree RIENG. Lan nay CHI chua group doc lap — resolve-groups da tach group phu thuoc
+    # cung dot sang serial/. Phu thuoc len FOUNDATION thi van o day: fix-foundation la node rieng, da co commit that.
+    fanout:
+      over: "NTAPP-output/.work/bug-groups/parallel/*"
+      as: GROUP
+      max_concurrency: 5
+    prompt: |
+      ITEM = ${ITEM}. GID = ten file cua ITEM sau khi bo tien to `^[0-9]+_` (vd "02_g2" -> "g2"). Chi xu ly DUNG group nay.
+      Context "Cross-iteration ledger" dau prompt = bai hoc batch truoc.
+
+      HOP DONG CHUNG: buoc A (nap group + doc chi tiet bug tu source_file hoac tu Jira), buoc C (fix per-bug) va
+      buoc D (persist reviews/$GID.md) GIONG HET node `fix-foundation`: Read `.vsaf/workflows/NTAPP/bug-fix-batch.yaml`,
+      block `- id: fix-foundation`, lam theo dung buoc A/C/D o do. Rieng buoc C nhac lai vi day la rang buoc cung:
+      MOI bug = 1 lan Invoke: Skill(skill="NTAPP-bug-fix-engine") (bat buoc, khong tu sua bug); TUYET DOI KHONG gop
+      nhieu bug vao 1 lan goi; commit_mode=branch-commit, doc_sync_mode=deferred, cd "$wt".
+      Duoi day la PHAN KHAC BIET cua node nay.
+
+      A+. Lay them tu block group: depends_on, must_rebase_after, parallel_safe_with (parallel_safe_with chi de audit).
+      B. CACH LY GIT + CHON BASE (khac fix-foundation o cho base khong phai luon la main):
+         - Resolve repo path R cua container tu _unit-path-map.yaml.
+         - Chon base:
+             * must_rebase_after / depends_on tro toi group FOUNDATION cung container -> base = branch cua group do.
+             * khong tro toi dau -> base = main.
+             * tro toi group KHONG PHAI foundation -> DUNG, ghi ESCALATE: group nay dang nam nham lan, dang le
+               resolve-groups phai xep vao serial/. Chay tiep se base tren branch chua commit -> mat fix.
+         - XAC MINH BASE truoc khi tao worktree (khi base khac main):
+             git -C "$R" rev-list --count <base> ^main     # phai > 0
+           Bang 0 -> DUNG, ghi ESCALATE, KHONG tao worktree.
+         - wt="$R/../.vsaf-bugfix/$GID"; mkdir -p "$R/../.vsaf-bugfix"
+           git -C "$R" worktree add -B <branch> "$wt" <base>
+           cd "$wt" cho moi edit/commit.
+      C+. Group da disjoint (plan bao dam) -> chi cham file trong blast radius CHINH group nay. Phat hien phai cham file
+         NGOAI blast radius / cua group khac -> DUNG, ghi ESCALATE (plan gom nhom sot 1 canh), KHONG tu sua lan group khac.
+      D+. Bao cao them: base da chon.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-bug-fix-engine | yes|no | <so lan goi = so bug / ly do neu no>
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    depends_on: [fix-foundation, resolve-groups]
+    workspace: false
+
+  - id: fix-serial
+    description: "Fix group CO PHU THUOC NHAU (fanout mc:1 tuan tu) — moi group base tren branch DA COMMIT cua group truoc"
+    # Vi sao node RIENG chu khong phai vai dong huong dan trong fix-parallel: mc:1 la rao chan duy nhat engine cung cap
+    # giua cac item cung 1 fanout (xem E4) — item i+1 chi duoc dispatch sau khi item i vao `done`.
+    # Chay SAU fix-parallel de thu tu tong the = foundation -> doc lap -> chuoi phu thuoc, dung voi merge order.
+    fanout:
+      over: "NTAPP-output/.work/bug-groups/serial/*"
+      as: GROUP
+      max_concurrency: 1
+    prompt: |
+      ITEM = ${ITEM}. GID = ten file cua ITEM sau khi bo tien to `^[0-9]+_` (vd "02_gB" -> "gB"). Chi xu ly DUNG group nay.
+      Context "Cross-iteration ledger" dau prompt = bai hoc batch truoc.
+      Group nay NAM TRONG MOT CHUOI PHU THUOC: co group khac phai land truoc no; cac group truoc trong chuoi da chay
+      xong (fanout nay mc:1 theo dung thu tu topo ma resolve-groups danh so).
+
+      HOP DONG CHUNG: buoc A (nap group + doc chi tiet bug tu source_file hoac tu Jira), buoc C (fix per-bug) va
+      buoc D (persist reviews/$GID.md, ke ca khi hong) GIONG HET node `fix-foundation`: Read
+      `.vsaf/workflows/NTAPP/bug-fix-batch.yaml`, block `- id: fix-foundation`, lam theo dung buoc A/C/D o do.
+      Rieng buoc C nhac lai vi day la rang buoc cung: MOI bug = 1 lan Invoke: Skill(skill="NTAPP-bug-fix-engine")
+      (bat buoc, khong tu sua bug); TUYET DOI KHONG gop nhieu bug vao 1 lan goi; commit_mode=branch-commit,
+      doc_sync_mode=deferred, cd "$wt".
+      Duoi day la PHAN KHAC BIET cua node nay.
+
+      A+. Lay them: depends_on, must_rebase_after — o node nay la RANG BUOC THAT, khong phai audit.
+      B. CACH LY GIT + CHON BASE — diem de sai nhat cua ca workflow, lam dung tung buoc:
+         - Resolve repo path R cua container tu _unit-path-map.yaml.
+         - base = branch cua group ma GID nay phu thuoc, trong CUNG container. Phu thuoc nhieu group -> base = branch
+           cua group DUNG NGAY TRUOC trong chuoi topo (cac group con lai da nam trong lich su branch do). Khong co
+           phu thuoc nao trong cung container -> base = main.
+         - XAC MINH BASE DA CO COMMIT (bat buoc, truoc khi tao worktree):
+             git -C "$R" rev-parse --verify <base>         # branch phai ton tai
+             git -C "$R" rev-list --count <base> ^main     # phai > 0 khi base khac main
+           Dem ra 0 = group truoc chua commit gi -> DUNG NGAY, ghi ESCALATE "base rong". KHONG chay tiep:
+           `git worktree add -B <branch> <path> <base>` van tra rc=0 va lang le base ve main, tao branch trong nhu that.
+         - wt="$R/../.vsaf-bugfix/$GID"; mkdir -p "$R/../.vsaf-bugfix"
+           git -C "$R" worktree add -B <branch> "$wt" <base>
+           cd "$wt". Sau khi tao xong xac nhan lan nua:
+             git -C "$wt" log --oneline main..HEAD          # phai thay commit cua (cac) group truoc trong chuoi
+      D+. Bao cao them: base da chon + so commit thua huong tu group truoc (ket qua `git log --oneline main..HEAD`),
+         de nguoi doc kiem duoc chuoi khong bi dut.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-bug-fix-engine | yes|no | <so lan goi = so bug / ly do neu no>
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    depends_on: [fix-parallel, resolve-groups]
+    workspace: false
+
+  - id: integrate-verify
+    description: "Stage verify — tong hop moi group, chay test tung branch, xuat BAO CAO + MERGE ORDER + PREVIEW JIRA (khong merge, khong ghi Jira)"
+    # NON-fanout (whole-batch): can nhin toan bo group de suy merge order va doi chieu parallel_safe_with. Cung vi la
+    # node serial nen day la cho DUY NHAT duoc doc-sync doc chung (fanout song song se tranh ghi spec repo).
+    # depends_on fix-serial: fix-serial da phu thuoc fix-parallel -> chuoi day du foundation -> parallel -> serial -> verify.
+    prompt: |
+      BATCH_DIR = noi dung NTAPP-output/.current-bug-batch. Doc $BATCH_DIR/bug-groups.yaml + $BATCH_DIR/reviews/*.md
+      (NGUON code-review chinh, do node fix ghi o buoc D) + report cac node fix neu co.
+      1. Voi MOI group da fix (foundation + parallel + serial): xac dinh branch + worktree "$R/../.vsaf-bugfix/<gid>".
+         Trong worktree do, kiem chung o BAC CAO NHAT co the:
+           (1) co ATDD/test lien quan -> chay runner loc theo unit cua group; pass = chac nhat.
+               UU TIEN SLICE: group co `slices`/`slice_cohesion: true` (ca group thuoc 1 slice) -> chay ATDD/demo cua
+               slice do lam thuoc verify chinh (bao phu hanh vi tot nhat).
+           (2) khong test nhung co duong chay/build -> build + smoke; quan sat khong con loi bug goc.
+           (3) khong ca hai -> kiem TINH: diff dung blast radius, khong ro ri file ngoai group. Ghi "verify: static-only".
+         Ghi ro moi group da kiem o bac nao (trung thuc, khong "sua xong la tin").
+         GATE ATDD: bug atdd_class: mandatory MA khong co regression test xanh kem theo -> danh dau BLOCKER cho group do.
+      2. DOC-SYNC — gom TODO deferred tu fix-report cac group. Ap SURGICAL theo bang doc ung vien cua
+         NTAPP-bug-fix-engine step-03 (dd/techspec/ui_schema/ds/slice) cho unit da doi contract/behavior. DD per-unit
+         da duoc engine bump luc fix -> o day chi dong bo doc CHUNG con lai. Danh dau DRAFT cho batch-demo review truoc merge.
+      3. Suy MERGE ORDER de xuat: foundation merge TRUOC; group co depends_on/must_rebase_after merge SAU base cua no;
+         group la doc lap merge doc lap. Co group ESCALATE / test FAIL / mandatory-ATDD thieu test -> danh dau BLOCKER,
+         khong khuyen merge.
+      4. Ghi $BATCH_DIR/bug_batch_integration.md:
+           - bang: group | branch | bug keys | jira_key | verify-level | test pass/fail | finding/escalate.
+           - MERGE ORDER de xuat (lenh git merge / gh pr theo thu tu).
+           - bug needs-investigation (KHONG fix) + ly do -> can nguoi bo sung bang chung.
+           - cac ESCALATE (canh xung dot bi sot / header khong chac / unit moi can DD).
+           - group co "status: FAILED" trong reviews/<gid>.md -> neu len DAU bao cao kem ly do, va ghi ro batch da dung
+             tai day nen group phia sau CHUA duoc chay (khong phai chung khong co bug).
+      5. SINH PREVIEW JIRA -> $BATCH_DIR/jira-resolve-plan.md. Day la thu nguoi dung doc o cong 2; node resolve-jira
+         CHI duoc ghi len Jira dung nhung gi co trong file nay.
+         DU DIEU KIEN = bug co jira_key VA fix thanh cong. LOAI ra: bug co "jira_skip: BLOCKER", bug thuoc group BLOCKER
+         hoac group co "status: FAILED", bug kind needs-investigation, bug khong co jira_key.
+         Khong bug nao du dieu kien -> VAN ghi file, DONG DAU DUNG NGUYEN VAN:
+           JIRA: khong co bug nao du dieu kien resolve
+         Voi moi bug du dieu kien, doc trang thai tuoi (CHI DOC):
+           python -X utf8 <jira_helper> get-issue --key <KEY> --extra-fields customfield_13241
+         roi ghi 1 muc gom: bug key | jira_key | jira_type | trang thai hien tai | duong di toi Resolved | Bug Type
+         (customfield_13241 dang co) | Due Date (hom nay) | Nguoi chiu TN (= assignee dang fix) | Est |
+         Assignee cuoi (= reporter) | Nguyen nhan / Anh huong / Giai phap (COPY DU tu reviews/<gid>.md, KHONG tom tat).
+         DUONG DI TRANG THAI la quy dinh cung cua jira.digital.vn — KHONG hoi nguoi dung, KHONG thay Resolved bang
+         transition khac: To Do -> 2 hop (In Progress -> Resolved) | In Progress / Pending / Verifying -> 1 hop truc tiep
+         | Cancelled hoac trang thai la khong co duong -> ghi "KHONG CO DUONG — bo qua bug nay", khong ep.
+         Type = Bug MA thieu 1 trong 3 noi dung Nguyen nhan/Anh huong/Giai phap -> danh dau "THIEU NOI DUNG — chua duoc
+         ghi Jira" (quy dinh noi bo, Jira khong tu chan). Type = Issue -> 3 field khong bat buoc.
+         Cuoi file canh bao: branch CHUA merge vao main tai thoi diem duyet — resolve Jira nghia la "dev da xong, cho
+         verify", khong phai "da land". Can chac thi merge truoc roi moi ky APPROVED-JIRA.
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    depends_on: [fix-serial]
+    workspace: false
+
+  - id: approve-jira
+    description: "HITL GATE 2 — halt cho den khi nguoi dung duyet noi dung se ghi len Jira (ghi checksum vao <batch>/APPROVED-JIRA) roi resume"
+    # Vi sao gate RIENG, khong gop vao approve-plan: Jira la state dung chung NGOAI repo, `Resolved -> To Do` KHONG
+    #   revert duoc; va luc duyet gom nhom (cong 1) chua ai biet Nguyen nhan/Anh huong/Giai phap se ghi len Jira la gi.
+    # BA DUONG DI QUA CONG:
+    #   1. preview co dong dau sentinel "JIRA: khong co bug nao du dieu kien resolve" -> di tiep, khong bat ky.
+    #   2. preview KHONG ton tai -> tra bug-groups.yaml (ban da ky o cong 1): khong co jira_key nao -> di tiep;
+    #      CO jira_key -> DUNG (preview dang le phai co ma khong co). KHONG duoc chi kiem "file preview co ton tai":
+    #      batch thuan file-local se treo o day chi vi mot node AI khong ghi file, ma cong lai khong co gi de ky cho qua.
+    #   3. preview co noi dung that -> doi chu ky APPROVED-JIRA khop checksum.
+    # Chu ky in ra la lenh TINH LAI checksum chu khong in san gia tri: nguoi dung DUOC PHEP sua preview de bo bug khoi
+    #   lo, in san se thanh ky checksum cua ban cu. Co che gate: E2. Khong dung `set -euo pipefail`: E3.
+    bash: |
+      BATCH_FILE="NTAPP-output/.current-bug-batch"
+      if [ ! -f "$BATCH_FILE" ]; then
+        echo "ERROR: khong thay $BATCH_FILE — node plan-bugs chua ghi batch dir." >&2
+        exit 1
+      fi
+      BATCH_DIR=$(head -n1 "$BATCH_FILE" | sed 's/[[:space:]]*$//')
+      if [ -z "$BATCH_DIR" ]; then
+        echo "ERROR: $BATCH_FILE rong — node plan-bugs chua ghi batch dir." >&2
+        exit 1
+      fi
+      PLAN="$BATCH_DIR/jira-resolve-plan.md"
+      GROUPS="$BATCH_DIR/bug-groups.yaml"
+      if [ ! -f "$PLAN" ]; then
+        # PLAN thieu co HAI nghia rat khac nhau — phan biet bang bug-groups.yaml (ban DA duoc ky checksum o
+        # gate 1), khong suy tu viec mot node AI co ghi file hay khong:
+        #   khong bug nao gan jira_key  -> that su khong co gi de resolve -> di tiep (batch thuan file-local).
+        #   CO bug gan jira_key         -> preview dang le phai ton tai ma khong co -> DUNG (fail-closed).
+        if [ ! -f "$GROUPS" ]; then
+          echo "ERROR: khong thay [$PLAN] lan [$GROUPS] — khong the xac dinh batch nay co bug gan Jira hay khong." >&2
+          echo "KHONG mo cong (fail-closed). Kiem tra lai batch dir trong $BATCH_FILE." >&2
+          exit 1
+        fi
+        if tr -d "\"'" < "$GROUPS" | grep -Eq "jira_key:[[:space:]]*[A-Z][A-Z0-9]+-[0-9]+"; then
+          echo "ERROR: khong thay [$PLAN] nhung $GROUPS CO bug gan jira_key." >&2
+          echo "Nghia la node integrate-verify chua sinh preview Jira -> khong co noi dung nao de duyet." >&2
+          echo "KHONG mo cong: bo qua se lam mat buoc resolve Jira ma khong ai biet." >&2
+          echo "Chay lai integrate-verify roi resume; hoac co y khong dung Jira lan nay thi tao $PLAN voi dong dau:" >&2
+          echo "  JIRA: khong co bug nao du dieu kien resolve" >&2
+          exit 1
+        fi
+        echo "OK: bug-groups.yaml khong co bug nao gan jira_key — batch thuan file-local, khong co gi de resolve tren Jira."
+        exit 0
+      fi
+      if head -n1 "$PLAN" | grep -q "khong co bug nao du dieu kien resolve"; then
+        echo "OK: khong co bug nao gan Jira du dieu kien resolve — bo qua buoc ghi Jira."
+        exit 0
+      fi
+      SUM=$(shasum -a 256 "$PLAN" 2>/dev/null | cut -c1-16)
+      if [ -z "$SUM" ]; then SUM=$(sha256sum "$PLAN" 2>/dev/null | cut -c1-16); fi
+      if [ -z "$SUM" ]; then
+        echo "ERROR: khong tinh duoc checksum cua $PLAN (may thieu ca shasum lan sha256sum)." >&2
+        echo "Khong the xac minh chu ky duyet khop ban plan nao -> KHONG mo cong ghi Jira." >&2
+        exit 1
+      fi
+      MARK="$BATCH_DIR/APPROVED-JIRA"
+      if [ -f "$MARK" ] && grep -q "$SUM" "$MARK" 2>/dev/null; then
+        echo "OK: noi dung Jira da duoc duyet dung ban nay (checksum $SUM). Tiep tuc sang buoc resolve-jira."
+        exit 0
+      fi
+      if [ -f "$MARK" ]; then
+        echo "CANH BAO: co $MARK nhung checksum trong do KHONG khop plan hien tai ($SUM)." >&2
+        echo "Nghia la jira-resolve-plan.md da thay doi SAU khi duyet (chay lai cung ngay, hoac vua sua tay)." >&2
+        echo "Chu ky cu het hieu luc — phai doc lai va duyet lai ban moi. Jira KHONG revert duoc nen khong fail-open." >&2
+      fi
+      cat >&2 <<EOF
+
+      ============== HITL GATE 2: DUYET NOI DUNG GHI LEN JIRA ==============
+      Mo va doc: $PLAN
+        (moi bug: trang thai hien tai -> duong di toi Resolved, Bug Type, Due Date,
+         Nguoi chiu trach nhiem, Est, Assignee cuoi = Reporter, va DU 3 noi dung
+         Nguyen nhan / Anh huong / Giai phap se duoc ghi len Jira)
+
+      Can biet truoc khi ky:
+        - Day la GHI THAT len Jira, KHONG auto-undo. Resolved -> To Do KHONG revert duoc.
+        - Branch CHUA duoc merge vao main. Resolve o day nghia la "dev da xong, cho verify",
+          KHONG phai "code da land". Can chac thi merge truoc roi hay ky.
+        - Bug BLOCKER / ESCALATE / needs-investigation da bi loai khoi danh sach — dung y.
+        - Muon bo bug nao khoi lo: xoa muc cua bug do trong $PLAN TRUOC khi ky.
+
+      Khi dong y, DUYET (chay dung 1 trong 2 dong duoi — no TINH LAI checksum cua ban plan
+      HIEN TAI, ke ca khi ban vua sua file; dung tu go tay gia tri checksum):
+        shasum -a 256 "$PLAN" | cut -c1-16 > "$MARK"
+        # may khong co shasum thi dung: sha256sum "$PLAN" | cut -c1-16 > "$MARK"
+        vsaf resume <runId>      # hoac slash: /NTAPP-vsaf-resume <runId>
+
+      Sua $PLAN sau khi ky -> checksum doi -> cong dong lai, phai ky lai. Do la chu y.
+
+      Khong muon dung Jira lan nay -> sua DONG DAU file thanh dung cau
+        JIRA: khong co bug nao du dieu kien resolve
+      roi resume; workflow se bo qua buoc ghi Jira.
+      ======================================================================
+      EOF
+      exit 1
+    depends_on: [integrate-verify]
+    workspace: false
+
+  - id: resolve-jira
+    description: "Ghi Jira sau khi duyet — set 3 field ket qua fix, assign lai Reporter, transition sang Resolved (chi bug fix thanh cong)"
+    model: sonnet
+    # Node DUY NHAT duoc phep update-issue / transition. NGUON NOI DUNG = jira-resolve-plan.md DA DUOC DUYET;
+    # khong tu nghi ra / sua noi dung 3 field, khong them bug ngoai danh sach do.
+    prompt: |
+      BATCH_DIR = noi dung NTAPP-output/.current-bug-batch. Doc $BATCH_DIR/jira-resolve-plan.md (BAN DA DUOC DUYET).
+      jira_helper = <skills-dir>/NTAPP-log-bug/jira_bug.py (khong thay -> DUNG, bao nguoi dung chay
+      ./scripts/sync-skills-to-user.sh --skills-only).
+
+      0. HAI DIEU KIEN BO QUA — kiem CA HAI truoc khi lam gi:
+         - File jira-resolve-plan.md KHONG TON TAI -> batch khong co bug nao gan jira_key (cong approve-jira da xac minh
+           tu bug-groups.yaml roi moi cho di tiep). Bao cao "bo qua buoc Jira: batch thuan file-local", KET THUC node.
+           TUYET DOI KHONG tu suy danh sach bug tu bug-groups.yaml / reviews/*.md de resolve — chua co ban preview nao
+           duoc duyet, ghi Jira luc nay la ghi ngoai chu ky.
+         - Dong dau file la "JIRA: khong co bug nao du dieu kien resolve" -> bao cao "bo qua buoc Jira", KET THUC node.
+      1. Voi MOI bug trong plan (bo qua muc "KHONG CO DUONG" hoac "THIEU NOI DUNG"), chay 4 lenh THEO DUNG THU TU.
+         Thu tu bat buoc: "Nguoi chiu trach nhiem" phai duoc set khi assignee VAN CON la nguoi fix, truoc khi (c)
+         assign lai Reporter.
+         (a) Set 3 field cua hop In Progress — BO QUA neu issue da o In Progress/Pending/Verifying VA 3 field da co
+             gia tri (da co thi KHONG ghi de):
+               python -X utf8 <jira_helper> update-issue --key <KEY> \
+                 --fields-json '{"duedate":"<hom nay>","customfield_15400":{"name":"<nguoi dang fix>"},"timetracking":{"originalEstimate":"<Nh>","remainingEstimate":"<Nh>"}}'
+             customfield_15400 = Nguoi chiu trach nhiem (userpicker) la NGUOI FIX, KHONG phai reporter. Ba field nay nam
+             tren EDIT screen -> phai set bang update-issue TRUOC transition, KHONG nhet vao payload cua transition.
+         (b) Hop trung gian — CHI khi dang o To Do:
+               python -X utf8 <jira_helper> transition --key <KEY> --to "In Progress"
+         (c) Set 3 field ket qua fix + assign lai Reporter:
+               python -X utf8 <jira_helper> update-issue --key <KEY> --assignee <reporter.name> \
+                 --fields-json '{"customfield_13406":"<Nguyen nhan>","customfield_15800":"<Anh huong>","customfield_15801":"<Giai phap>"}'
+             13406 = Nguyen nhan · 15800 = Anh huong · 15801 = Giai phap. COPY NGUYEN VAN tu plan, KHONG viet lai.
+         (d) Hop cuoi sang Resolved:
+               python -X utf8 <jira_helper> transition --key <KEY> --to Resolved \
+                 --fields-json '{"customfield_13241":{"value":"<Bug Type>"}}'
+             Transition screen cua Resolved bat lai Bug Type. Lay gia tri dang co trong plan va gui lai y nguyen; dang
+             trong -> BO QUA bug do va ghi vao bao cao de nguoi dung chon tay trong allowedValues ma get-issue tra ve
+             (Performance / Logic / Enviroment / Config / GUI / UI). KHONG doan gia tri.
+         Moi customfield_* tren la id da verify tren jira.digital.vn. PROJECT/INSTANCE KHAC THI ID KHAC — doc lai bang
+         get-issue --extra-fields hoac editmeta roi map theo TEN field.
+      2. AN TOAN KHI GHI:
+         - Luon --dry-run truoc de validate, roi moi chay that.
+         - Lenh nao tra ok:false -> DUNG chuoi cua DUNG BUG DO tai cho do, ghi loi vao bao cao, di tiep bug khac.
+           KHONG retry vong lap. Dung giua chuoi -> NEU RO issue dang o trang thai nao va con thieu buoc nao de nguoi
+           dung xu ly tay (Resolved -> To Do KHONG revert duoc).
+         - KHONG comment, KHONG doi priority/label, KHONG dong issue ngoai danh sach trong plan, KHONG hop them
+           transition ngoai duong di da duyet. Khong in / log token.
+      3. Ghi $BATCH_DIR/jira-resolve-result.md: bang "bug key | jira_key | trang thai truoc | trang thai sau |
+         assignee sau | ket qua (ok / loi + dang dung o buoc nao)". Bao cao cung noi dung + so bug Resolved / so bug loi.
+      4. KHONG flip trang thai bug trong BUGS-*.md o node nay — flip la viec tay cua nguoi dung SAU KHI merge
+         (xem batch-demo). Resolve Jira va flip file la hai moc khac nhau.
+    depends_on: [approve-jira]
+    workspace: false
+
+  - id: batch-demo
+    description: "HITL close-out — tom tat batch cho review, huong dan merge + cap nhat trang thai bug thu cong, ghi ledger cross-batch"
+    model: sonnet
+    # Diem CLOSURE. KHONG merge / KHONG push / KHONG flip status tu dong (quyet dinh locked: source read-mostly).
+    prompt: |
+      BATCH_DIR = noi dung NTAPP-output/.current-bug-batch. Context "Cross-iteration ledger" = bai hoc batch truoc.
+      1. Tom tat cho SeniorDev/PM (doc bug_batch_integration.md + report cac group + jira-resolve-result.md neu co):
+         "N bug -> M group da fix (F foundation, K song song, S serial), X need-investigation". Moi group: branch,
+         worktree path, bug keys, verify-level, trang thai. Co BLOCKER (test fail / escalate / status: FAILED) -> neu
+         bat len dau. Them 1 dong Jira: so bug da Resolved / so bug loi khi ghi / so bug co jira_key nhung bi loai
+         (BLOCKER, thieu noi dung, khong co duong toi Resolved) + viec nguoi dung can lam tay cho tung ca loi.
+      2. Huong dan buoc tay (workflow DUNG o day, KHONG tu lam):
+         - Review + merge theo MERGE ORDER trong bug_batch_integration.md (foundation truoc): `git -C <repo> checkout main
+           && git merge <branch>` hoac tao PR.
+         - Don worktree sau merge: `git -C <repo> worktree remove <wt>` (hoac `git worktree prune`).
+         - Cap nhat trang thai bug (Open/In Progress/Reopened -> Fixed) trong BUGS-*.md THU CONG SAU KHI merge — tranh
+           trang thai lech giua spec va code chua land. Bug da Resolved tren Jira ma branch chua merge -> van chua flip.
+         - Bug need-investigation: bo sung route/file/stack vao BUGS-*.md roi chay lai workflow cho batch phu.
+      3. Ghi LEDGER forward-looking -> append NTAPP-output/ledgers/bug-fix-ledger.md (mkdir -p; tao header neu chua co;
+         KHONG sua entry cu). GON 5-10 dong, chi dieu batch sau CAN BIET:
+           - tieu de "## <ten batch> (<ngay>)"
+           - bug pattern lap lai / hot node hay vo (vd "CORE-01 axios interceptor: 3 batch lien tiep co regression 401")
+           - localize/grouping pitfall (vd "route /vee map nham unit -> phai sua _unit-path-map.yaml")
+           - verify gotcha + quyet dinh anh huong batch sau
+           - Jira gotcha (vd "Bug Type trong -> transition Resolved bi tu choi, phai chon tay")
+         Khong co bai hoc -> van ghi entry voi cac muc "—" (dong batch, tranh lo hong audit).
+    ledger: NTAPP-output/ledgers/bug-fix-ledger.md
+    depends_on: [resolve-jira]
+    workspace: false

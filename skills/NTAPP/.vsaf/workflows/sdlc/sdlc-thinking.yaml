@@ -1,0 +1,12 @@
+name: sdlc-thinking
+description: "Sub-flow: Discovery → PRD — understand the problem space before designing"
+
+nodes:
+  - id: discovery
+    command: sdlc-discovery
+    workspace: false
+
+  - id: prd
+    command: sdlc-prd
+    depends_on: [discovery]
+    workspace: false

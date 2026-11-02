@@ -1,0 +1,807 @@
+{
+  "total_files": 20,
+  "total_links": 71,
+  "internal_links": 69,
+  "external_links": 2,
+  "valid_internal": 62,
+  "broken_internal": 7,
+  "internal_success_rate": 89.85507246376811,
+  "file_results": [
+    {
+      "file": "ci-cd-integration.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "README.md",
+      "total_links": 34,
+      "internal_links": 34,
+      "external_links": 0,
+      "valid_internal": 34,
+      "broken_internal": 0,
+      "link_results": [
+        {
+          "text": "Projects Overview",
+          "url": "projects/",
+          "line": 10,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "LEP (Lending Platform)",
+          "url": "projects/LEP/",
+          "line": 11,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "INSURANCE (Insurance Platform)",
+          "url": "projects/INSURANCE/",
+          "line": 12,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "EKYC (eKYC Services)",
+          "url": "projects/EKYC/",
+          "line": 13,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "PLATFORM (Infrastructure)",
+          "url": "projects/PLATFORM/",
+          "line": 14,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS AI Memory Service",
+          "url": "projects/PLATFORM/VDS-AI-Memory/",
+          "line": 15,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Project Libraries",
+          "url": "projects/",
+          "line": 19,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS AI Memory API",
+          "url": "../vds-ai-memory/README.md",
+          "line": 20,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS Scripts Documentation",
+          "url": "../vds-scripts/docs/README.md",
+          "line": 21,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Development Setup",
+          "url": "shared/development/",
+          "line": 23,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Integration Layer",
+          "url": "shared/integration/",
+          "line": 24,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Examples & Tutorials",
+          "url": "shared/examples/",
+          "line": 25,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Architecture",
+          "url": "shared/architecture/",
+          "line": 29,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Platform Analysis",
+          "url": "shared/analysis/",
+          "line": 30,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Research Playbooks",
+          "url": "shared/research/",
+          "line": 31,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Security Platform",
+          "url": "projects/SECURITY/",
+          "line": 35,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Operations Playbooks",
+          "url": "shared/operations/",
+          "line": 39,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Setup Guides",
+          "url": "shared/guides/setup/",
+          "line": 43,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Implementation Standards",
+          "url": "shared/guides/implementation/IMPLEMENTATION_STANDARDS.md",
+          "line": 44,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Integration Guides",
+          "url": "shared/guides/integration/",
+          "line": 46,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Deployment Guides",
+          "url": "shared/guides/deployment/",
+          "line": 47,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Tools Guides",
+          "url": "shared/guides/tools/",
+          "line": 48,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Quick Start Guide",
+          "url": "shared/guides/setup/QUICK_START.md",
+          "line": 56,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Development Setup",
+          "url": "shared/development/README.md",
+          "line": 57,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Projects Overview",
+          "url": "projects/README.md",
+          "line": 58,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Projects",
+          "url": "projects/",
+          "line": 62,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS Scripts",
+          "url": "../vds-scripts/docs/README.md",
+          "line": 63,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS Scripts README",
+          "url": "../vds-scripts/docs/README.md#3-cli-reference",
+          "line": 66,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Integration Layer",
+          "url": "shared/integration/",
+          "line": 67,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Project Libraries",
+          "url": "projects/",
+          "line": 68,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Troubleshooting",
+          "url": "shared/development/troubleshooting.md",
+          "line": 69,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Examples & Tutorials",
+          "url": "shared/examples/",
+          "line": 70,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS Scripts README",
+          "url": "../vds-scripts/docs/README.md",
+          "line": 132,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Troubleshooting",
+          "url": "shared/development/troubleshooting.md",
+          "line": 138,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        }
+      ]
+    },
+    {
+      "file": "projects/README.md",
+      "total_links": 17,
+      "internal_links": 17,
+      "external_links": 0,
+      "valid_internal": 16,
+      "broken_internal": 1,
+      "link_results": [
+        {
+          "text": "LEP (Lending Platform)",
+          "url": "LEP/",
+          "line": 16,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "INSURANCE (Insurance Platform)",
+          "url": "INSURANCE/",
+          "line": 25,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "EKYC (eKYC Services)",
+          "url": "EKYC/",
+          "line": 34,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "PLATFORM (Infrastructure)",
+          "url": "PLATFORM/",
+          "line": 43,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS AI Memory Service",
+          "url": "../../VDS-AI-Memory/",
+          "line": 52,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Complete API Documentation",
+          "url": "../../VDS-AI-Memory/README.md",
+          "line": 69,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "INSURANCE Business Library",
+          "url": "INSURANCE/business/",
+          "line": 251,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "LEP Business Library",
+          "url": "LEP/business/",
+          "line": 252,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "EKYC Services",
+          "url": "EKYC/business/",
+          "line": 253,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "VDS AI Memory API",
+          "url": "../../VDS-AI-Memory/README.md",
+          "line": 257,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "API Documentation",
+          "url": "INSURANCE/integrations/api-documentation.md",
+          "line": 258,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Integration Guide",
+          "url": "INSURANCE/integrations/integration-guide.md",
+          "line": 259,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Development Setup",
+          "url": "../shared/development/",
+          "line": 260,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Platform Infrastructure",
+          "url": "PLATFORM/",
+          "line": 264,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Operations Guide",
+          "url": "../shared/operations/",
+          "line": 265,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Security Guidelines",
+          "url": "../shared/operations/security/",
+          "line": 266,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "AI Material Proposal Overview",
+          "url": "../ai-material-proposal/README.md",
+          "line": 270,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/ai-material-proposal/README.md"
+        }
+      ]
+    },
+    {
+      "file": "_removed/DECOMMISSION_SHIMS.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/ADOPTION_CHECKPOINT.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/MEMORY_STORAGE_DEMO.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/HOOK_PATH_FIX_SUMMARY.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/ANNOUNCEMENT_DEPRECATION.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/BITBUCKET_ORCHESTRATOR_ENHANCEMENT_STATUS.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "_removed/HOOK_IMPLEMENTATION_VERIFICATION.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "shared/README.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/FINAL_DOCUMENTATION.md",
+      "total_links": 8,
+      "internal_links": 7,
+      "external_links": 1,
+      "valid_internal": 7,
+      "broken_internal": 0,
+      "link_results": [
+        {
+          "text": "uv \u201cproject environment\u201d docs",
+          "url": "https://github.com/astral-sh/uv/blob/main/docs/concepts/projects/layout.md#the-project-environment",
+          "line": 75,
+          "type": "external",
+          "valid": true,
+          "message": "External link (not validated)"
+        },
+        {
+          "text": "MIGRATION_GUIDE.md",
+          "url": "./MIGRATION_GUIDE.md",
+          "line": 166,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "README.md",
+          "url": "./README.md",
+          "line": 177,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Final Documentation",
+          "url": "./FINAL_DOCUMENTATION.md",
+          "line": 178,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Migration Guide",
+          "url": "./MIGRATION_GUIDE.md",
+          "line": 179,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Docker Deployment Guide",
+          "url": "./DOCKER_DEPLOYMENT_GUIDE.md",
+          "line": 180,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Atlassian Features Reference",
+          "url": "./ATLASSIAN_FEATURES_REFERENCE.md",
+          "line": 181,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Deployment Tasks",
+          "url": "./DEPLOYMENT_TASKS.md",
+          "line": 182,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        }
+      ]
+    },
+    {
+      "file": "scripts/UV_MIGRATION_PLAN.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/UV_QUICKSTART.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/ATALASSIAN_PYTHON_MIGRATION.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/DOCKER_DEPLOYMENT_GUIDE.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/CLEANUP_CHECKLIST.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/FINAL_VERIFICATION_CHECKLIST.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    },
+    {
+      "file": "scripts/README.md",
+      "total_links": 12,
+      "internal_links": 11,
+      "external_links": 1,
+      "valid_internal": 5,
+      "broken_internal": 6,
+      "link_results": [
+        {
+          "text": "atlassian-python-api Confluence module",
+          "url": "https://atlassian-python-api.readthedocs.io/confluence.html",
+          "line": 85,
+          "type": "external",
+          "valid": true,
+          "message": "External link (not validated)"
+        },
+        {
+          "text": "Final Documentation",
+          "url": "./FINAL_DOCUMENTATION.md",
+          "line": 106,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Migration Guide",
+          "url": "./MIGRATION_GUIDE.md",
+          "line": 108,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Docker Deployment Guide",
+          "url": "./DOCKER_DEPLOYMENT_GUIDE.md",
+          "line": 109,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Atlassian Features Reference",
+          "url": "./ATLASSIAN_FEATURES_REFERENCE.md",
+          "line": 110,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Deployment Tasks",
+          "url": "./DEPLOYMENT_TASKS.md",
+          "line": 112,
+          "type": "internal",
+          "valid": true,
+          "message": "File exists"
+        },
+        {
+          "text": "Operations Guide",
+          "url": "./docs/README.md",
+          "line": 126,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/docs/README.md"
+        },
+        {
+          "text": "JIRA Orchestrator",
+          "url": "./jira_orchestrator/README.md",
+          "line": 132,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/jira_orchestrator/README.md"
+        },
+        {
+          "text": "Bitbucket Orchestrator",
+          "url": "./bitbucket_orchestrator/README.md",
+          "line": 138,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/bitbucket_orchestrator/README.md"
+        },
+        {
+          "text": "Git Orchestrator",
+          "url": "./git_orchestrator/README.md",
+          "line": 144,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/git_orchestrator/README.md"
+        },
+        {
+          "text": "AI Agent Integration",
+          "url": "./hooks/README.md",
+          "line": 150,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/hooks/README.md"
+        },
+        {
+          "text": "`_removed/README.md`",
+          "url": "_removed/README.md",
+          "line": 205,
+          "type": "internal",
+          "valid": false,
+          "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/_removed/README.md"
+        }
+      ]
+    },
+    {
+      "file": "scripts/UV_TROUBLESHOOTING.md",
+      "total_links": 0,
+      "internal_links": 0,
+      "external_links": 0,
+      "valid_internal": 0,
+      "broken_internal": 0,
+      "link_results": []
+    }
+  ],
+  "broken_internal_summary": [
+    {
+      "file": "projects/README.md",
+      "line": 270,
+      "url": "../ai-material-proposal/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/ai-material-proposal/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 126,
+      "url": "./docs/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/docs/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 132,
+      "url": "./jira_orchestrator/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/jira_orchestrator/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 138,
+      "url": "./bitbucket_orchestrator/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/bitbucket_orchestrator/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 144,
+      "url": "./git_orchestrator/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/git_orchestrator/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 150,
+      "url": "./hooks/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/hooks/README.md"
+    },
+    {
+      "file": "scripts/README.md",
+      "line": 205,
+      "url": "_removed/README.md",
+      "message": "File not found: /Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document/scripts/_removed/README.md"
+    }
+  ]
+}

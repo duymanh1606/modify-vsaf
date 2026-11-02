@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {{FOLDERS}}
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/NTAPP-output/archive": true,
+      "**/.git": false,
+      "**/.DS_Store": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/NTAPP-output/archive": true,
+      "**/dist": true,
+      "**/build": true
+    }
+  }
+}

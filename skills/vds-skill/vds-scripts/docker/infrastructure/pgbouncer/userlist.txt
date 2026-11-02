@@ -1,0 +1,50 @@
+; =============================================================================
+; VDS PgBouncer userlist — DEPLOY-TIME GENERATION REQUIRED
+; =============================================================================
+; This file is committed as a STUB so the docker compose volume mount succeeds
+; on first `up -d` (Docker bind-mount auto-creates missing source paths as
+; DIRECTORIES, which would crash pgbouncer with "auth_file: not a regular file").
+;
+; BEFORE FIRST DEPLOY, replace this file's contents with real password hashes
+; for the 3 PgBouncer-level users (admin, stats, auth). Run from project root:
+;
+;   # 1. Create the 3 PgBouncer users (one-time, idempotent):
+;   docker exec vds-postgres psql -U postgres -c "
+;     DO \$\$ BEGIN
+;       CREATE USER pgbouncer_admin WITH PASSWORD '$PGBOUNCER_ADMIN_PASSWORD';
+;     EXCEPTION WHEN duplicate_object THEN ALTER USER pgbouncer_admin
+;       WITH PASSWORD '$PGBOUNCER_ADMIN_PASSWORD'; END \$\$;
+;     -- Repeat for pgbouncer_stats and pgbouncer_auth (with their own passwords)
+;     GRANT pg_read_all_settings TO pgbouncer_stats;
+;   "
+;
+;   # 2. Generate userlist.txt from pg_shadow:
+;   docker exec vds-postgres psql -U postgres -t -A -c "
+;     SELECT '\"' || usename || '\" \"' || passwd || '\"'
+;     FROM pg_shadow
+;     WHERE usename IN ('postgres','pgbouncer_admin','pgbouncer_stats','pgbouncer_auth')
+;       AND passwd IS NOT NULL
+;   " > docker/infrastructure/pgbouncer/userlist.txt
+;
+;   # 3. Verify file is non-empty + has 4 lines:
+;   wc -l docker/infrastructure/pgbouncer/userlist.txt
+;
+;   # 4. Then bring up pgbouncer:
+;   docker compose -f docker/docker-compose.infra.yml --profile infra up -d vds-pgbouncer
+;
+; The `auth_query` in pgbouncer.ini handles per-service password lookup at
+; runtime; only the 3 bootstrap users + postgres need entries here.
+;
+; SECURITY NOTE: this stub will be tracked in git so the volume mount works.
+; Once you run the generation, the real password hashes will appear as a
+; modified-file diff. Use `git update-index --skip-worktree
+; docker/infrastructure/pgbouncer/userlist.txt` to keep them out of git
+; without removing the stub from tracking.
+; =============================================================================
+
+; Placeholder line so this file is a valid non-empty file for Docker mount.
+; PgBouncer will read this on startup and find no real users until you replace
+; this content. The healthcheck will FAIL until step 2 above runs and the file
+; gets real password hashes.
+
+"placeholder_user" "REPLACE_BEFORE_DEPLOY_runs_pg_shadow_query_per_userlist_template"

@@ -1,0 +1,33 @@
+{
+  "name": "sonar-viettel",
+  "description": "Viettel Quality Gate — transcribed verbatim from quality_gate_1.png (New Code) and quality_gate_2.png (Overall Code). A condition FAILS the gate when the metric crosses the operator/value below. Ratings: A=1, B=2, C=3, D=4, E=5.",
+  "isBuiltIn": false,
+  "conditions": {
+    "newCode": [
+      { "metric": "new_violations",                 "label": "Issues",                     "op": "GT", "error": "0" },
+      { "metric": "new_security_hotspots_reviewed",  "label": "Security Hotspots Reviewed", "op": "LT", "error": "100" },
+      { "metric": "new_coverage",                    "label": "Coverage",                   "op": "LT", "error": "0.0" },
+      { "metric": "new_duplicated_lines_density",    "label": "Duplicated Lines (%)",       "op": "GT", "error": "45.0" },
+      { "metric": "new_maintainability_rating",      "label": "Maintainability Rating",     "op": "GT", "error": "1" },
+      { "metric": "new_blocker_violations",          "label": "Blocker Issues",             "op": "GT", "error": "0" },
+      { "metric": "new_code_smells",                 "label": "Code Smells",                "op": "GT", "error": "20" },
+      { "metric": "new_critical_violations",         "label": "Critical Issues",            "op": "GT", "error": "0" },
+      { "metric": "new_major_violations",            "label": "Major Issues",               "op": "GT", "error": "0" },
+      { "metric": "new_vulnerabilities",             "label": "Vulnerabilities",            "op": "GT", "error": "0" },
+      { "metric": "new_reliability_rating",          "label": "Reliability Rating",         "op": "GT", "error": "1" },
+      { "metric": "new_security_rating",             "label": "Security Rating",            "op": "GT", "error": "1" }
+    ],
+    "overallCode": [
+      { "metric": "blocker_violations",          "label": "Blocker Issues",         "op": "GT", "error": "0" },
+      { "metric": "bugs",                        "label": "Bugs",                   "op": "GT", "error": "0" },
+      { "metric": "code_smells",                 "label": "Code Smells",            "op": "GT", "error": "50" },
+      { "metric": "critical_violations",         "label": "Critical Issues",        "op": "GT", "error": "0" },
+      { "metric": "duplicated_lines_density",    "label": "Duplicated Lines (%)",   "op": "GT", "error": "45.0" },
+      { "metric": "sqale_rating",                "label": "Maintainability Rating", "op": "GT", "error": "1" },
+      { "metric": "major_violations",            "label": "Major Issues",           "op": "GT", "error": "0" },
+      { "metric": "reliability_rating",          "label": "Reliability Rating",     "op": "GT", "error": "1" },
+      { "metric": "security_rating",             "label": "Security Rating",        "op": "GT", "error": "1" },
+      { "metric": "vulnerabilities",             "label": "Vulnerabilities",        "op": "GT", "error": "0" }
+    ]
+  }
+}

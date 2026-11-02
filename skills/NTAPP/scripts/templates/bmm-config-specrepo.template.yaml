@@ -1,0 +1,356 @@
+# .bmm-config.yaml — SPEC REPO config ({{SPEC_REPO_NAME}})
+#
+# Generated for: {{PROJECT_NAME}}
+# Generated at: {{TIMESTAMP}}
+#
+# File này là Layer 2 — nơi project override path và khai lớp OKF. Bootstrap chỉ
+# ghi khi file CHƯA CÓ, hoặc khi file hiện tại lộ dấu hiệu là bản chép nhầm từ
+# project khác. File đã tinh chỉnh tay thì bootstrap không đụng vào.
+
+project_name: {{PROJECT_NAME}}
+
+bmad:
+  spec_repo_root: .
+  # Code repo là các sibling. Key này chỉ có MỘT slot nên để trống khi có nhiều
+  # repo; skill Stage 5 chạy từ chính code repo tương ứng.
+  code_repo_root: ""
+  design_system_root: "{project-root}/NTAPP-output/design-system"
+
+# ─── Per-skill output path overrides ────────────────────────────────
+# Bám đúng cấu trúc trong CLAUDE.md §Output structure. Layer 1 mặc định gom về
+# Stage_1_Discovery, nên các skill dưới đây phải được trỏ lại tường minh.
+
+ntapp-architecture-design:
+  project_name: "{{PROJECT_NAME}}"
+  planning_artifacts: "{project-root}/NTAPP-output/Stage_2_Architecture"
+
+# Input và output của skill này KHÔNG cùng chỗ: đọc HLD/Module 0/WBS ở Stage 2,
+# ghi techspec sang Stage 3. planning_artifacts trỏ INPUT để tra WBS chạy đúng.
+ntapp-technical-design:
+  project_name: "{{PROJECT_NAME}}"
+  planning_artifacts: "{project-root}/NTAPP-output/Stage_2_Architecture"
+  techspec_output: "{project-root}/NTAPP-output/Stage_3_Specs/techspec"
+
+# Ngược lại với trên: planning_artifacts trỏ OUTPUT, vì workflow slice-loop kiểm
+# idempotent theo đường dẫn đó và pre-commit Rule 3 cũng tra file DD ở đó.
+ntapp-feature-design:
+  project_name: "{{PROJECT_NAME}}"
+  planning_artifacts: "{project-root}/NTAPP-output/Stage_4_Design/detailed_design"
+  techspec_input: "{project-root}/NTAPP-output/Stage_3_Specs/techspec"
+  architecture_input: "{project-root}/NTAPP-output/Stage_2_Architecture"
+
+ntapp-ux-design:
+  project_name: "{{PROJECT_NAME}}"
+  planning_artifacts: "{project-root}/NTAPP-output/Stage_3_Specs/ux"
+
+# Stage 5: snapshot về spec repo, live artifact ở code repo (CLAUDE.md §Dual-repo).
+bmad-testarch-framework:
+  test_artifacts: "{project-root}/NTAPP-output/Stage_5_Build_Verify/test-artifacts"
+
+bmad-testarch-atdd:
+  test_artifacts: "{project-root}/NTAPP-output/Stage_5_Build_Verify/test-artifacts"
+  tests_output: "{project-root}/tests"
+
+# ════════════════════════════════════════════════════════════════════
+# OKF — lớp tri thức chiếu từ artifact
+# ════════════════════════════════════════════════════════════════════
+# Quy ước chọn adapter, đánh số ADR và slice: docs/Process/OKF_conventions.md.
+# Chạy: /NTAPP-okf-refresh. Engine chỉ đọc `families` từ file NÀY (Layer 2) —
+# khai ở Layer 1 `_bmad/bmm/config.yaml` sẽ bị bỏ qua trong im lặng.
+#
+# ┌─ HAI VIỆC PHẢI LÀM SAU LẦN CHIẾU THẬT ĐẦU TIÊN ──────────────────┐
+# │ 1. Điền `min_nodes` cho từng family (đang comment bên dưới). Lấy │
+# │    số node thực trong `.okf/status.md`, đặt ngưỡng ~90-95% số đó.│
+# │    Đây là lưới bắt DUY NHẤT cho lỗi "quét hụt nhưng báo thành    │
+# │    công" — glob nới tay hay `split_level` khai thiếu mức đều ra  │
+# │    node bình thường và không cảnh báo gì.                        │
+# │ 2. Bỏ `allow_missing_source` của family đã có nguồn. Khai cả hai │
+# │    cùng lúc là mâu thuẫn nên engine sẽ báo lỗi — cố ý như vậy.   │
+# └──────────────────────────────────────────────────────────────────┘
+#
+# `allow_missing_source: true` nghĩa là "stage của family này chưa chạy, chưa có
+# gì để đọc" — engine bỏ qua và GHI VÀO LOG, thay vì giết cả lượt chiếu. Không
+# có nó thì project mới không chạy nổi OKF cho tới khi đủ cả 5 stage.
+
+okf:
+  # Cạnh ngược built_as (unit → file code). Lượt liên kết đọc toàn bundle trên
+  # đĩa, nên chiếu riêng một bên vẫn để hai bên khớp nhau.
+  links:
+    - {back_edge: built_as, from_family: code-file, from_field: ntapp_unit, to_family: wbs-unit}
+
+  # Repo có gắn thẻ `// id:` ở đầu file code. Repo chưa gắn thẻ thì ĐỪNG khai:
+  # thiếu một repo đã khai nghĩa là "chưa biết", và audit sẽ từ chối trả số độ
+  # phủ thay vì trả một con số sai theo hướng lạc quan.
+  code_repos:
+{{OKF_CODE_REPOS}}
+
+  families:
+    # ── Xương sống: WBS, hợp đồng kết nối, và file code ────────────────────
+    wbs-unit:
+      adapter: wbs-index
+      source: Stage_2_Architecture/project_wbs.md
+      design_doc: "Stage_4_Design/detailed_design/{unit}_detailed_design.md"
+      allow_missing_source: true
+      # min_nodes: <số unit trong WBS>
+      goal: >
+        Trả lời "unit này là gì, ai dùng nó, nó dùng gì, đã build chưa" mà không
+        phải mở cả bảng WBS.
+
+    contract:
+      adapter: table-rows
+      source: Stage_2_Architecture/00_system_connectivity_integration.md
+      section: "Ma trận kết nối hệ thống"
+      id_column: 0
+      id_pattern: "C-[0-9]{2}"
+      allow_missing_source: true
+      # min_nodes: <số hàng trong ma trận>
+      goal: >
+        Đối chiếu hợp đồng kết nối NGUYÊN VĂN. Thẻ tóm tắt thay cho danh sách
+        field sẽ che đúng loại lệch mà đối chiếu này sinh ra để bắt.
+
+    code-file:
+      adapter: id-header-scan
+      unit_source: Stage_2_Architecture/project_wbs.md
+      allow_missing_source: true
+      # min_nodes: <số file code có thẻ id:>
+      # Ngưỡng RIÊNG cho từng repo. Đây là lưới bắt cho cái bẫy khó thấy nhất:
+      # ID không cùng hình dạng giữa BE và FE (BE-* kết thúc bằng số, SCR-*/WGT-*
+      # kết thúc bằng chữ), nên một regex viết theo mẫu backend vẫn chạy sạch,
+      # BÁO THÀNH CÔNG, và âm thầm bỏ toàn bộ file FE. Tổng số thì vẫn đẹp.
+      # repo_min: {<tên-fe-repo>: <số file>}
+      goal: >
+        Đóng vòng spec↔code: unit nào đã build, file nào không truy vết được,
+        chỗ nào code đang chạy sau thiết kế.
+
+    # ── Tài liệu dài → chia theo mục ───────────────────────────────────────
+    # `split_level` là DANH SÁCH mức, không phải một số. DD và techspec thường
+    # chia sạch ở H2, nhưng HLD và UX trộn H2 với H3 — khai [2] cho hai file đó
+    # vẫn RA NODE, chỉ là hụt phần H3 và không báo gì.
+    design-section:
+      adapter: heading-split
+      source_glob: Stage_4_Design/detailed_design/*_detailed_design.md
+      split_level: [2]
+      # Tên file là định danh phủ hết mọi DD, kể cả file không có frontmatter.
+      # Nó cũng đúng là khoá mà `wbs-unit.design_doc` tra ngược ra.
+      key_from: '(.+)_detailed_design\.md'
+      key_field: ntapp_unit
+      skip_headings: ["lịch sử thay đổi"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <tổng số mục H2 của mọi DD>
+      goal: >
+        Resolve đúng MỘT mục của DD thay vì nạp cả file.
+
+    module-spec-section:
+      adapter: heading-split
+      # KHÔNG dùng *.md: thư mục techspec thường còn file vận hành (bàn giao
+      # config, danh mục mã lỗi) — nới glob sẽ nhặt cả mục không phải đặc tả.
+      source_glob: Stage_3_Specs/techspec/*_techspec.md
+      split_level: [2]
+      key_from: '(.+)_techspec\.md'
+      key_field: ntapp_module
+      skip_headings: ["ghi nhận thay đổi"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <tổng số mục H2 của mọi techspec>
+      goal: >
+        Đọc đúng một mục hợp đồng L2 mà không kéo theo cả techspec.
+
+    hld-section:
+      adapter: heading-split
+      source: Stage_2_Architecture/architecture_design.md
+      split_level: [2, 3]
+      # `ADR-00` bỏ các khối H3 của §6 vì `runtime-adr` đã SỞ HỮU chúng. Không
+      # bỏ thì mỗi ADR ra HAI node từ cùng một khối chữ. Từ khoá phải là
+      # `ADR-00` chứ không phải `adr`: phép so khớp chỉ hạ chữ hoa chứ không bỏ
+      # dấu, nên `adr` sẽ nuốt luôn các mục HLD thật có nhắc tới ADR.
+      skip_headings: ["ghi nhận thay đổi", "ADR-00"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số mục H2 + H3 của HLD, trừ phần đã skip>
+      goal: >
+        Resolve đúng một quyết định kiến trúc thay vì nạp cả HLD.
+
+    ux-section:
+      adapter: heading-split
+      source: Stage_3_Specs/ux/ux_design.md
+      split_level: [2, 3]
+      skip_headings: ["change log", "lịch sử thay đổi"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số mục H2 + H3 của ux_design>
+      goal: >
+        Resolve đúng một hành trình / nguyên tắc UX thay vì nạp cả file.
+
+    # ── Hai loại quyết định, KHÔNG phải một ────────────────────────────────
+    # designed-adr: quyết định ĐƯỢC THIẾT KẾ, chốt ở Stage 1 trước khi xây —
+    #               file thật trong Stage_1_Discovery/adr/, đánh số 4 chữ số.
+    # runtime-adr:  quyết định NẢY RA TRONG LÚC CHẠY, ở stage sau — các khối
+    #               ### ADR-00x trong §6 của HLD, đánh số 3 chữ số.
+    # Cạnh chỉ đi ngược thời gian: runtime-adr khai adr_refs [designed-adr],
+    # không có chiều ngược lại. Engine phân biệt hai chuỗi bằng SỐ CHỮ SỐ, nên
+    # HAI CHUỖI KHÔNG ĐƯỢC CÙNG BỀ RỘNG — trùng thì engine bỏ số đó và cảnh báo.
+    designed-adr:
+      adapter: whole-file
+      source_glob: Stage_1_Discovery/adr/*.md
+      key_from: '^(\d{3,4})-'
+      key_field: adr_number
+      adr_series: true
+      outline_level: [2]
+      allow_missing_source: true
+      # min_nodes: <số file ADR>
+      # KHÔNG khai `adr_refs` cho họ này. ADR Stage 1 có trích dẫn lẫn nhau,
+      # nhưng quan hệ đó là "thay thế" / "liên quan", không phải "bị chi phối
+      # bởi". Chiếu nó thành governed_by sẽ là một cạnh sai trông rất hợp lý.
+      goal: >
+        Quyết định nền. Đích của phần lớn cạnh governed_by.
+
+    runtime-adr:
+      adapter: heading-blocks
+      # `source` số ít, KHÔNG glob: thư mục archive/ còn giữ các bản HLD cũ, mỗi
+      # bản một chuỗi ADR-00x riêng. Glob sẽ trộn nhiều thế hệ quyết định vào
+      # cùng một chuỗi số.
+      source: Stage_2_Architecture/architecture_design.md
+      level: 3
+      # DANH SÁCH TRẮNG theo mẫu mã: §6 mở đầu bằng H2 và một bảng tra, chỉ H3
+      # khớp đúng mẫu này mới là quyết định.
+      key_pattern: '^(ADR-\d{3}):\s*(.+)$'
+      key_field: adr_number
+      # Node id giữ `adr-001` cho dễ đọc; `adr_number` bỏ tiền tố còn `001` để
+      # so được với `0001` của designed-adr. Cùng một trường phải cùng hình dạng.
+      key_strip: '^ADR-'
+      adr_series: true
+      adr_refs: [designed-adr]
+      description_field: context
+      field_map:
+        "Ngày": decided_at
+        "Bối cảnh": context
+        "Quyết định": decision
+        "Lý do": rationale
+        "Hệ quả": consequence
+      allow_missing_source: true
+      # min_nodes: <số khối ADR-00x trong §6>
+      goal: >
+        Quyết định phát sinh khi xây, tách khỏi quyết định thiết kế.
+
+    # ── Khái niệm đã sẵn một-file-một-khái-niệm ────────────────────────────
+    service:
+      adapter: whole-file
+      # `[!_]*.md` chứ KHÔNG phải `*.md`: cùng thư mục còn `_overview.md` là tài
+      # liệu liên hệ thống — khác loại, có họ riêng ngay bên dưới.
+      source_glob: Stage_1_Discovery/system_overview/[!_]*.md
+      description_section: "Executive Summary"
+      # Các file overview thường mở đầu bằng một nhãn in đậm giống hệt nhau; lấy
+      # nguyên nhãn đó làm mô tả thì mọi thẻ trông y như nhau trong danh sách —
+      # đúng thứ mà mô tả sinh ra để tránh. Cờ này bỏ nhãn dẫn.
+      description_drop_label: true
+      carry_fields: {repo: code_repo}
+      outline_level: [2]
+      skip_headings: ["mục lục"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số file overview per-repo>
+      goal: >
+        "Service này làm gì, gọi ai, ai gọi nó" mà không mở tài liệu dài.
+
+    system-overview:
+      adapter: whole-file
+      source: Stage_1_Discovery/system_overview/_overview.md
+      outline_level: [2]
+      skip_headings: ["mục lục"]
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: 1
+
+    slice:
+      adapter: slice-manifest
+      slice_dir: Stage_2_Architecture/slices
+      # `demoable` là câu do người viết mô tả đúng thứ slice này chứng minh được
+      # — không có nguồn nào tốt hơn cho mô tả, và nó là chữ của master.
+      description_field: demoable
+      # Đối chiếu ba chiều (manifest ∧ knowledge ∧ ledger). Luật hai chiều
+      # "manifest nào cũng phải có trong ledger" sẽ báo động giả với slice làm
+      # tay, chưa từng chạy qua slice-loop.
+      ledger: ledgers/slice-ledger.md
+      knowledge_dir: ledgers/knowledge
+      unit_family: wbs-unit
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số slice trong manifest>
+      goal: >
+        Neo mọi thứ phái sinh (bug, story, bài học) về đúng lát cắt sinh ra nó.
+
+    bug:
+      adapter: heading-blocks
+      source_glob: Stage_1_Discovery/Bugs_Issues/BUGS-SLICE-*.md
+      level: 2
+      # DANH SÁCH TRẮNG theo mẫu mã, không phải danh sách đen theo tiêu đề. File
+      # bug lẫn cả heading nhật ký xử lý; danh sách đen phải nối dài mỗi lần ai
+      # đó nghĩ ra kiểu tiêu đề mới, và khi hụt thì một ghi chú lặng lẽ thành
+      # một node bug.
+      key_pattern: '^(SLICE-\d+-BUG-\d+)\s*[—–-]\s*(.+)$'
+      key_field: bug_id
+      slice_dir: Stage_2_Architecture/slices
+      slice_from_key: '^(SLICE-\d+)-BUG-'
+      # Mỗi bug mở đầu bằng vài dòng nhãn, trong đó ghi chú fix có thể rất dài.
+      # Lấy block đầu làm mô tả sẽ dán hai trường không liên quan vào nhau.
+      description_after: "Mô tả"
+      field_map:
+        "Trạng thái": bug_state
+        "Severity": bug_severity
+        "WBS unit": ntapp_unit
+        "Màn hình / API": bug_surface
+        "Người báo": bug_reporter
+        "Ngày báo": bug_reported_at
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số bug đã log>
+      goal: >
+        Trả lời "unit này từng hỏng ở đâu" TRƯỚC khi sửa nó.
+
+    lesson:
+      adapter: knowledge-bullets
+      # Hai mẫu, vì slice set phẳng ở feature đầu và lồng dưới thư mục feature
+      # từ feature thứ hai trở đi — lúc chuyển đổi thì cả hai layout cùng sống.
+      source_glob:
+        - ledgers/knowledge/SLICE-*.md
+        - ledgers/knowledge/*/SLICE-*.md
+      slice_dir: Stage_2_Architecture/slices
+      slice_from_key: '^(SLICE-\d+)'
+      sections: [Pattern, Decision, Gotcha, Notes]
+      # Heading nằm ở CẢ hai mức trong thực tế: phần lớn note viết `### Pattern`
+      # nhưng một số viết `## Pattern`. Khai một mức thì mất trọn vài file mà
+      # không có lỗi nào.
+      section_level: [2, 3]
+      # Danh sách unit lấy từ WBS, KHÔNG bao giờ từ regex quét prose: một token
+      # có hình dạng id thì vẫn không phải là id.
+      unit_family: wbs-unit
+      unit_source: Stage_2_Architecture/project_wbs.md
+      adr_refs: true
+      allow_missing_source: true
+      # min_nodes: <số bullet tri thức>
+      goal: >
+        Trả lời "slice trước đã vấp gì ở unit này" mà không phải đọc mọi ghi chú.
+
+    ui-schema:
+      adapter: json-doc
+      source_glob: Stage_4_Design/ui_schema/ui_schema_*.json
+      id_key: id
+      fields:
+        ui_id: id
+        ui_kind: id_type
+        design_system: _meta.design_system
+        figma_ref: _meta.figma_ref
+        dd_version: _meta.dd_version
+      counts:
+        ui_controls: data_bindings.controls
+        ui_drift_notes: _drift_notes
+        ui_states: state_machine.states
+      preview:
+        "Control": {path: data_bindings.controls, field: id, limit: 24}
+        "Lệch L2↔L3": {path: _drift_notes, field: l2_ref, limit: 10}
+      allow_missing_source: true
+      # min_nodes: <số file ui_schema>
+      goal: >
+        File JSON hàng chục KB nhìn từ danh sách thư mục thì giống hệt nhau. Thẻ
+        trả lời "có đáng mở không" trước khi mở.

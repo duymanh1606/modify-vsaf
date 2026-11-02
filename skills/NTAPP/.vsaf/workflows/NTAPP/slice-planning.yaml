@@ -1,0 +1,54 @@
+# Workflow — slice-planning (Stage 2b — chi cho PHAT TRIEN MOI)
+# Muc tieu: Tu WBS + HLD da lock (reproduce_architecture), sinh slice manifest cho feature moi.
+#           Tach khoi slice-loop vi khac cardinality: planning chay 1 lan -> N slice; slice-loop chay per-slice.
+# Phase trong Manual: Stage 2b.
+#
+# Chay: vsaf run NTAPP/slice-planning
+# Tien dieu kien: da chay xong NTAPP/reproduce_architecture (project_wbs.md approved_by).
+# Xong gate -> loop tung slice: vsaf run NTAPP/slice-loop --args SLICE-01
+
+name: slice-planning
+description: "Stage 2b — sinh slice plan cho phat trien moi (1 HITL gate). Per-slice build: slice-loop"
+nodes:
+  - id: slice-planning
+    description: "Stage 2b — sinh slice manifest (Coverage + DAG gate internal)"
+    # hook (post): Hook 15 slice-coverage-dag-validate — moi unit P0 thuoc >=1 slice; blocked_by no-cycle.
+    prompt: |
+      Invoke: Skill(skill="NTAPP-slice-planning") — bat buoc, khong thay the bang cach tu gom unit thanh slice.
+
+      Input: NTAPP-output/Stage_2_Architecture/project_wbs.md da lock (co approved_by) + HLD + Module 0.
+      Output: NTAPP-output/Stage_2_Architecture/slices/SLICE-*.md — moi slice mot file, dat canh project_wbs.md
+      vi slice la phan mo rong cua WBS.
+      Ba rang buoc skill tu enforce, khong duoc noi long de ra slice cho de: moi unit P0 phai thuoc it nhat mot slice;
+      do thi blocked_by khong duoc co chu trinh; slice dau tien la tracer bullet phai dung du layer.
+      Node stage2b-approval doc chinh cac file nay va chan neu con finding trong _drift_report_slice.md.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-slice-planning | yes|no | <ly do neu no>
+    workspace: false
+
+  - id: stage2b-approval
+    description: "HITL — SeniorDev + SA ky slice plan; slice 1 (tracer bullet) dung du layer"
+    # hook: Hook 1 approval-gate (checkpoint cuoi truoc per-slice loop).
+    bash: |
+      miss=0
+      shopt -s nullglob
+      # Block approval while unresolved slice-graph findings remain (Change 2)
+      report="NTAPP-output/Stage_2_Architecture/_drift_report_slice.md"
+      if [ -f "$report" ] && grep -Eq '\[(shared-hub|precedence|coverage|DAG)\]' "$report"; then
+        echo "BLOCK: unresolved slice-graph findings in $report"
+        grep -E '\[(shared-hub|precedence|coverage|DAG)\]' "$report" | head -n 20
+        echo "Resolve shared-hub/precedence/coverage/DAG findings (fix WBS/slice manifests), re-run slice-planning, then approve."
+        exit 1
+      fi
+      files=(NTAPP-output/Stage_2_Architecture/slices/*.md)
+      if [ ${#files[@]} -eq 0 ]; then echo "Chua co slice manifest — slice-planning skill khong sinh slice nao."; exit 1; fi
+      for f in "${files[@]}"; do
+        if ! grep -q '^approved_by:' "$f" 2>/dev/null; then echo "THIEU approval: $f"; miss=1; fi
+      done
+      if [ "$miss" != 0 ]; then
+        echo "SeniorDev/SA ky moi SLICE-*.md, roi: vsaf run NTAPP/slice-planning --resume <runId>"
+        exit 1
+      fi
+      echo "Stage 2b approved — build per-slice: vsaf run NTAPP/slice-loop --args SLICE-01"
+    depends_on: [slice-planning]
+    workspace: false

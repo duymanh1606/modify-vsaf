@@ -1,0 +1,9 @@
+name: onboarding
+description: "Utility — Onboarding: docs graph + code graph + env setup (not part of main flow)"
+nodes:
+  - id: docs
+    command: sdlc-onboard-docs
+    workspace: false
+  - id: code
+    command: sdlc-onboard-code
+    workspace: false

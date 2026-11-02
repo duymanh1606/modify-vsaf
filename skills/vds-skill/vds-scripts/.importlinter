@@ -1,0 +1,86 @@
+[importlinter]
+# Root packages that participate in contracts. Kept to workspace members so
+# `lint-imports` resolves them in the workspace venv without extra sync steps.
+# TSK-7.12b will expand this set to include `vds_platform_core` once that
+# package is added to `tool.uv.workspace.members` (part of TSK-7.12a scope).
+root_packages =
+    vds_agent_core
+    vds_cli_common
+    vds_platform_core
+include_external_packages = True
+
+# --- No-op seed contract ---
+#
+# TSK-7.0 (Phase 7, v24.2.0) installs import-linter and seeds this file with a
+# contract that always passes, so CI can wire up `lint-imports` before
+# TSK-7.12b adds the real layering invariant.
+#
+# TSK-7.12b will append a "forbidden" contract of the form:
+#
+#   [importlinter:contract:platform-core-no-vds-cli-common]
+#   name = platform_core must not depend on vds_cli_common
+#   type = forbidden
+#   source_modules = vds_platform_core
+#   forbidden_modules = vds_cli_common
+#
+# That contract makes the Layer 1 -> Layer 2 inversion (DEFAULT_ENV_PATHS lazy
+# import at config.py:20-23) a build-break rather than a runtime-only warning.
+
+[importlinter:contract:platform-core-no-vds-cli-common]
+name = platform_core must not depend on vds_cli_common
+type = forbidden
+source_modules =
+    vds_platform_core
+forbidden_modules =
+    vds_cli_common
+
+# --- Phase 9 FR-9 boundary contract (added 2026-04-30) ---
+#
+# Encodes the spec mandate from `vds-agent-core-alignment` requirements.md
+# that `vds_agent_core` depends ONLY on `vds_cli_common` + `vds_platform_core`.
+# Wave 33 dependency-chain audit verified the runtime state is clean; this
+# contract makes future regressions a CI build-break instead of a manual-grep
+# discovery. Replaces the `phase7-seed-noop` seed (deleted 2026-04-30).
+#
+# Forbidden modules: every workspace orchestrator. If a new orchestrator
+# joins the workspace, add it here.
+
+[importlinter:contract:agent-core-isolation]
+name = vds_agent_core must not depend on any orchestrator
+type = forbidden
+source_modules =
+    vds_agent_core
+forbidden_modules =
+    vds_audit_orchestrator
+    vds_memory_orchestrator
+    vds_scheduler_orchestrator
+    vds_multi_agent_orchestrator
+    vds_progress_report_orchestrator
+    vds_research_orchestrator
+    vds_spec_orchestrator
+    vds_task_orchestrator
+    vds_evolution
+    vds_confluence_orchestrator
+    vds_bitbucket_orchestrator
+    vds_jira_orchestrator
+    vds_grafana_orchestrator
+    vds_sonarqube_orchestrator
+    vds_elastic_orchestrator
+    vds_brd_orchestrator
+    vds_circular_dependency_orchestrator
+    vds_db_query_orchestrator
+    vds_excel_orchestrator
+    vds_git_orchestrator
+    vds_google_sheets_orchestrator
+    vds_hexagonal_orchestrator
+    vds_intellij_orchestrator
+    vds_links_orchestrator
+    vds_lsp_orchestrator
+    vds_markdown_orchestrator
+    vds_metabase_orchestrator
+    vds_openapi_orchestrator
+    vds_pdf_orchestrator
+    vds_public_interface_boundary_orchestrator
+    vds_structure_orchestrator
+    vds_sync_orchestrator
+    vds_cli

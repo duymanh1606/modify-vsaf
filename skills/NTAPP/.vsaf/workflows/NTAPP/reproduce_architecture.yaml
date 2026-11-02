@@ -1,0 +1,215 @@
+# Workflow — reproduce_architecture (rename tu batch-discovery-architecture)
+# Muc tieu: Stage 2 — dung lai kien truc AS-IS tu CODE dang chay (brownfield). 2 skill chay lan luot:
+#           NTAPP-system-overview (baseline evidence tu code) -> NTAPP-architecture-design (HLD + Module 0 + WBS).
+#           1 HITL gate ky SA.
+# Phase trong Manual: Stage 2. 1 HITL gate.
+#
+# Chay: vsaf run NTAPP/reproduce_architecture [--args "--skip-qa --force --repos a,b,c --workspace-root <path>"]
+#
+# TIEN DIEU KIEN — day la BROWNFIELD gate, KHONG phai "create_prd_epics approved" nhu ban cu.
+# Node `input-gate` enforce (pattern port tu path-b-quick-dev/input-gate + ad-hoc-per-unit: fail-fast dieu kien
+# cung + ghi state file cho node sau doc):
+#   1. >= 1 code repo trong workspace root (marker pom.xml / package.json / go.mod / ...). Workflow nay doc CODE
+#      chu khong doc yeu cau -> khong co code repo thi khong co gi de tai dung.
+#   2. project_wbs.md CHUA lock (chua co `approved_by:`). WBS da lock roi ma re-run FULL se ghi de inventory ma
+#      DD / story / code downstream dang tham chieu (Rule 2 pre-commit doi WBS la SSoT) -> them vai unit le thi
+#      dung /NTAPP-architecture-design --append. Co y dung lai toan bo -> --args "--force".
+#   3. PRD / Epics KHONG phai tien dieu kien. Reproduce mo ta he thong DANG CHAY (as-built evidence), khong phai
+#      intent tuong lai; PRD/Epics neu co chi la nguon PHU va baseline THANG khi 2 nguon lech. Can PRD cho phat
+#      trien moi -> chay NTAPP/create_prd_epics SAU, doc lap, roi NTAPP/slice-planning.
+#      Hook 1 (approval-gate) da relax dung nhanh nay: PRD+Epics ca hai VANG MAT + co bang chung brownfield
+#      (marker .reproduce-mode do input-gate ghi, hoac baseline system_overview da sinh) -> warn_pass;
+#      file ton tai nhung chua ky -> van BLOCK (giu ky luat greenfield). Escape tay: BROWNFIELD_REPRODUCE=1.
+#
+# State: input-gate ghi NTAPP-output/.reproduce-mode (mode + workspace_root + force + code_repos). Node sau DOC
+#        file nay, KHONG tu detect lai (mot nguon su that cho ca run, giong .current-unit-id cua ad-hoc-per-unit).
+#
+# HITL gate = bash check approved_by (exit 1 -> dung, human ky roi --resume <runId>).
+# Hook (approval-gate, drift-detector, stage2-completeness) fire qua Claude Code event + pre-commit, doc lap
+# voi engine — giu lai duoi dang comment de tham chieu.
+
+name: reproduce_architecture
+description: "Stage 2 as-is — system-overview + architecture (HLD/Module 0/WBS) tu code hien tai; KHONG yeu cau PRD/Epics"
+# model = DEFAULT model cho AI node (engine emit hint qua needs_ai.nodes[].model). Ca 2 node AI o day deu la
+# work nang (doc toan bo code repo / thiet ke HLD) -> opus, khong node nao ha xuong sonnet.
+model: opus
+nodes:
+  - id: input-gate
+    description: "Brownfield gate — >=1 code repo trong workspace + WBS chua lock; ghi state .reproduce-mode"
+    # KHONG check prd.md / epics.md nua — day la thay doi chinh so voi ban cu. Doi lai la 2 dieu kien THAT SU
+    # can cho mot lan tai dung as-is: co code de doc, va khong ghi de WBS da lock.
+    bash: |
+      # Gan BARE (khong boc quote): engine da shell-escape $ARGUMENTS trong `bash:` node (macOS/Linux boc dau ',
+      # Windows boc dau "). Tu boc them mot lop nua thi tren POSIX gia tri mang theo dau ' -> `--workspace-root
+      # /path` bi bat thanh "/path'" va bao khong ton tai; tren Windows thi bien rong + doan sau bi chay nhu lenh.
+      args=$ARGUMENTS
+      spec="$PWD"
+      ws="$(dirname "$spec")"
+      case "$args" in
+        *--workspace-root*) ws="$(echo "$args" | sed -E 's/.*--workspace-root[= ]+([^ ]+).*/\1/')" ;;
+      esac
+      # Normalize ve absolute: --workspace-root co the la relative / co trailing slash / co ".." ->
+      # phai so sanh duoc voi $spec de loai chinh spec repo khoi danh sach code repo.
+      if [ ! -d "$ws" ]; then
+        echo "workspace root khong ton tai: $ws"; exit 1
+      fi
+      ws="$(cd "$ws" && pwd)"
+      state="NTAPP-output/.reproduce-mode"
+      wbs="NTAPP-output/Stage_2_Architecture/project_wbs.md"
+      force=0
+      case "$args" in *--force*) force=1 ;; esac
+
+      # 1. Detect code repo sibling — cung bo marker file voi STEP 1.1 Tier 2 cua /NTAPP-system-overview,
+      #    de gate va skill khong bao gio ket luan lech nhau ve "co code repo hay khong".
+      list="$(mktemp)"
+      for d in "$ws"/*; do
+        if [ ! -d "$d" ]; then continue; fi
+        dabs="$(cd "$d" 2>/dev/null && pwd)"
+        if [ -z "$dabs" ]; then continue; fi
+        if [ "$dabs" = "$spec" ]; then continue; fi
+        # Spec repo (chinh no hoac spec repo khac / template repo) KHONG phai code repo: dau hieu la
+        # cap _bmad/ + NTAPP-output/. Chan truong hop spec repo tu lot vao danh sach khi ws duoc
+        # tro tay bang --workspace-root.
+        if [ -d "$dabs/_bmad" ] && [ -d "$dabs/NTAPP-output" ]; then continue; fi
+        name="$(basename "$dabs")"
+        case "$name" in .*) continue ;; esac
+        hit=0
+        for m in pom.xml build.gradle build.gradle.kts package.json go.mod requirements.txt pyproject.toml setup.py Cargo.toml Gemfile composer.json mix.exs; do
+          if [ -f "$dabs/$m" ]; then hit=1; break; fi
+        done
+        if [ "$hit" = 0 ]; then
+          for f in "$dabs"/*.csproj "$dabs"/*.sln; do
+            if [ -f "$f" ]; then hit=1; break; fi
+          done
+        fi
+        if [ "$hit" = 1 ]; then echo "$name" >> "$list"; fi
+      done
+      n="$(awk 'NF{c++} END{print c+0}' "$list" 2>/dev/null)"
+
+      if [ "${n:-0}" = 0 ]; then
+        echo "KHONG tim thay code repo nao trong workspace root: $ws"
+        echo "reproduce_architecture tai dung kien truc TU CODE -> can >=1 code repo (marker pom.xml / package.json / go.mod / ...)."
+        echo "Cach xu ly:"
+        echo "  - Mo IDE multi-root workspace gom spec repo + code repo (hoac clone code repo canh spec repo) roi chay lai."
+        echo "  - Code repo o noi khac: --args \"--workspace-root <path>\"."
+        echo "  - Greenfield chua co code: workflow nay khong ap dung -> NTAPP/create_prd_epics roi NTAPP/slice-planning."
+        rm -f "$list"
+        exit 1
+      fi
+
+      # 2. WBS lock guard — re-run FULL tren WBS da ky la thao tac pha vo tham chieu downstream.
+      if [ -f "$wbs" ] && [ "$force" = 0 ] && grep -q '^approved_by:' "$wbs" 2>/dev/null; then
+        echo "project_wbs.md DA lock (co approved_by:) — re-run FULL se ghi de inventory dang duoc DD/story/code tham chieu."
+        echo "  - Them vai unit moi     -> /NTAPP-architecture-design --append (khong re-run pipeline)."
+        echo "  - Co y dung lai toan bo -> vsaf run NTAPP/reproduce_architecture --args \"--force\"."
+        rm -f "$list"
+        exit 1
+      fi
+
+      # 3. PRD/Epics = THONG TIN, khong gate. Chi quyet dinh node architecture doc bao nhieu nguon.
+      mode=brownfield_code_only
+      if [ -f "NTAPP-output/Stage_1_Discovery/prd.md" ] || [ -f "NTAPP-output/Stage_1_Discovery/epics.md" ]; then
+        mode=brownfield_prd_backed
+      fi
+
+      mkdir -p NTAPP-output
+      {
+        echo "mode: $mode"
+        echo "generated_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "workspace_root: $ws"
+        echo "force: $force"
+        echo "code_repos:"
+        awk 'NF{print "  - " $0}' "$list"
+      } > "$state"
+      rm -f "$list"
+
+      echo "OK: $n code repo trong $ws -> du dieu kien tai dung kien truc as-is."
+      echo "mode=$mode  force=$force  (PRD/Epics KHONG phai tien dieu kien cua workflow nay)"
+      awk '/^  - /{print}' "$state"
+    workspace: false
+
+  - id: system-overview
+    description: "Stage 2 brownfield — baseline evidence + Contract Match Matrix cross-repo (idempotent)"
+    # Convert tu bare `command: NTAPP-system-overview` -> prompt node (pattern path-b-quick-dev §quick-dev):
+    #   command-node khong forward duoc flag -> khong bo duoc Q&A loop khi chay headless, khong idempotent-skip
+    #   duoc khi baseline da co, va khong noi duoc cho skill biet baseline nay se THAY PRD lam input Stage 2.
+    # Khong truyen --mode => skill chay mode `baseline` (DEFAULT): Section 0 Service Identity + Contract Match
+    # Matrix + Q&A loop + dual-write archive. Dung y dinh cua node nay.
+    prompt: |
+      State = NTAPP-output/.reproduce-mode (input-gate da ghi): `mode:`, `workspace_root:`, `code_repos:`.
+      Doc file nay lay danh sach repo — KHONG tu detect lai workspace.
+
+      Baseline DA co (NTAPP-output/Stage_1_Discovery/system_overview/_overview.md) va "$ARGUMENTS" KHONG chua
+      --force -> SKIP node (idempotent, giong pattern "DA ton tai -> SKIP" cua ad-hoc-per-unit).
+      Chua co, hoac co --force -> Invoke: Skill(skill="NTAPP-system-overview") che do baseline (DEFAULT —
+      KHONG truyen --mode) — bat buoc, khong thay the bang cach tu doc code roi viet overview:
+        - Forward nguyen cac flag xuat hien trong "$ARGUMENTS" neu co: --skip-qa (bo Q&A loop khi chay headless;
+          SA review gate ben trong skill van can nguoi), --repos <a,b,c>, --workspace-root <path>, --force.
+        - Baseline la EVIDENCE AS-BUILT va o workflow nay no la INPUT CHINH cua Stage 2 (thay cho PRD/Epics):
+          Section 0 (Service Identity & Auth Profile) -> External Systems + Tech Stack + auth zoning;
+          Section 6 (Integration Inbound/Outbound) -> ranh gioi container + protocol cho C4 L1/L2;
+          _overview.md Cross-System Contract Match Matrix -> contract surface seed cho Module 0.
+        - Cho nao khong doc duoc tu code thi de marker "<TODO: SA verify — ...>", TUYET DOI khong doan
+          (R3 Zero-Fabrication) — node architecture se nang cac marker nay thanh clarification question.
+      Bao cao: repo da scan | file baseline sinh ra hoac SKIP | so marker TODO con lai.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-system-overview | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [input-gate]
+    workspace: false
+
+  - id: architecture
+    description: "Stage 2 — 6 sub-agent: HLD + Module 0 + WBS (WBS Audit + handshake internal gate)"
+    # hook (post): Hook 14 stage2-completeness + Hook 2 drift-detector (WBS<->HLD<->Module0<->Epics).
+    #   Hook 2 brownfield-safe san: epics.md thieu -> bo qua nhanh WBS->Epics; unit co Epic "BL:" duoc skip
+    #   khoi graph-completeness (_is_feature_unit) -> khong can epics.md de qua drift check.
+    # Convert tu bare `command: NTAPP-architecture-design` -> prompt node: phai noi ro hop dong REPRODUCE
+    #   (baseline la input chinh, khong HALT vi thieu PRD, Epic column = BL:, giu nguyen unit_id cu).
+    prompt: |
+      State = NTAPP-output/.reproduce-mode -> doc `mode:`.
+
+      Invoke: Skill(skill="NTAPP-architecture-design") che do FULL — bat buoc, khong thay the bang cach tu viet
+      HLD/WBS. Theo hop dong REPRODUCE (tai dung as-is tu code):
+
+      1. INPUT CHINH = system_overview baseline (Uu tien 6 cua step-01 §1.1): _overview.md + {sub_system}.md.
+         - mode: brownfield_code_only -> KHONG co PRD/Epics va day la BINH THUONG. Baseline non-empty nghia la
+           Context Inventory KHONG rong -> pre-flight step-01 §1.1 KHONG duoc HALT voi ly do "thieu PRD/Epics".
+           Chi HALT khi CA baseline cung rong (luc do that su khong co input nao).
+         - mode: brownfield_prd_backed -> co PRD/Epics: dung lam nguon PHU (as-designed intent). Khi lech voi
+           baseline thi AS-BUILT thang (day la tai lieu he thong dang chay), va phai FLAG cho user reconcile,
+           KHONG tu chon ben nao.
+         - Khong yeu cau PRD/Epics ky `approved_by:` — Stage 1 khong phai tien dieu kien cua workflow nay.
+
+      2. WBS — unit tai dung tu code la BASELINE as-built: cot Epic ghi "BL:<sub_system>", TUYET DOI khong bia ma
+         EPIC-xx khi khong co Epics. Day la convention downstream dang dua vao: step-04.1b bo qua unit BL: khoi
+         audit coverage theo Epic, va drift-detector skip BL: khoi graph-completeness.
+
+      3. WBS DA ton tai (chua lock — input-gate da chan truong hop da lock): refresh IN-PLACE, GIU NGUYEN unit_id
+         cu (khong renumber, khong doi prefix) vi DD / story / header code downstream tham chieu ID; chi them unit
+         moi phat hien tu code + sua cot da lech so voi code.
+
+      4. Zero-fabrication (R3) + Missing Input (R9): khong sinh yeu cau tuong lai, khong bia NFR/so lieu. Thieu
+         thong tin -> "<TODO: SA verify — ...>" va nang thanh clarification question cho SA o §1.2/1.3.
+
+      Output (Stage_2_Architecture): architecture_design.md + 00_system_connectivity_integration.md + project_wbs.md.
+      Bao cao: so unit trong WBS | so module trong HLD | so contract Module 0 | so marker TODO/clarification con lai.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-architecture-design | yes|no | <ly do neu no>
+    depends_on: [system-overview]
+    workspace: false
+
+  - id: stage2-approval
+    description: "HITL — SA ky architecture_design.md + 00_system_connectivity_integration.md (SA,Compliance)"
+    # hook: Hook 1 approval-gate (2nd checkpoint — gate Stage 2b/3: slice-planning / techspec / ux-design).
+    bash: |
+      miss=0
+      for f in NTAPP-output/Stage_2_Architecture/architecture_design.md NTAPP-output/Stage_2_Architecture/00_system_connectivity_integration.md NTAPP-output/Stage_2_Architecture/project_wbs.md; do
+        if ! grep -q '^approved_by:' "$f" 2>/dev/null; then echo "THIEU approval: $f"; miss=1; fi
+      done
+      if [ "$miss" != 0 ]; then
+        echo "SA/Compliance ky cac file tren, roi: vsaf run NTAPP/reproduce_architecture --resume <runId>"
+        exit 1
+      fi
+      echo "Stage 2 approved — kien truc as-is locked."
+      echo "Buoc tiep:"
+      echo "  - Chua co PRD/Epics ma sap phat trien moi -> vsaf run NTAPP/create_prd_epics (doc lap, chay sau duoc)."
+      echo "  - Da co slice plan -> vsaf run NTAPP/slice-loop --args SLICE-01; chua co -> NTAPP/slice-planning truoc."
+    depends_on: [architecture]
+    workspace: false

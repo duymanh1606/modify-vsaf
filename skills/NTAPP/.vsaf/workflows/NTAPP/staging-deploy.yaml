@@ -1,0 +1,191 @@
+# Workflow 10 — staging-deploy
+# Muc tieu: Sau khi DEV complete tat ca slice -> KIEM CHUNG toan feature lap rap chay THONG LUONG,
+#           REMEDIATE cac cho dut mach, roi COMMIT/PUSH/PR tat ca repo vao nhanh staging (KHONG auto-deploy).
+# Phase trong Manual: Stage 5 — cuoi pipeline. Doi: tat ca slice demo_status: passed.
+#
+# Chay: vsaf run NTAPP/staging-deploy --args "<release_id>"
+#
+# 4 node tuan tu:
+#   feature-integration-smoke  -> verify (bac tinh reachability + bac live chay ATDD suite slice-loop DA sinh);
+#                                 fail -> ghi feature report + REMEDIATION BACKLOG (list task) + marker .staging_blocked_*
+#   feature-remediation        -> lam tung task trong backlog: AUTO khi co canh khai bao (append endpoint), ESCALATE
+#                                 khi la plan-gap/contract (chong ao giac — KHONG tu bia provider). Re-verify, cap nhat backlog.
+#   feature-integration-gate   -> gate DETERMINISTIC: marker con / reachability con unresolved -> exit 1 (halt).
+#   publish-staging-prs        -> commit + push + PR tat ca repo vao nhanh staging; khong co nhanh staging -> HOI USER nhanh dich.
+#
+# BO so voi ban cu:
+#   - sonarqube-final-scan: bo (Sonar da nam trong rule memory / pre-commit, khong lap lai o day).
+#   - build-staging (deploy-staging.sh): bo — "deploy staging" gio = PR vao nhanh staging (merge kich CI/CD), khong auto-deploy.
+#   - docker-compose.e2e.yml + smoke-e2e.sh: KHONG con la dieu kien bac live (project thuong khong co) -> thay bang
+#     chay bo ATDD/E2E test slice-loop da sinh; van dung docker-compose.e2e neu project CO cung cap (uu tien cao hon).
+
+name: staging-deploy
+description: "Verify feature lap rap chay thong -> remediate -> PR tat ca repo vao nhanh staging. --args <release_id>"
+model: opus
+# Model per node — CO CHU DINH giu opus cho ca 3 AI node (KHONG downgrade sonnet nhu slice-loop). Ly do:
+#   workflow nay chay 1 LAN / release (khong fanout dien rong) -> tiet kiem token KHONG phai dong luc; chon theo NANG LUC.
+#   - feature-integration-smoke: phan tich reachability + phan loai auto-vs-escalate (tag sai -> rui ro auto-write nham) -> opus.
+#   - feature-remediation: WRITE code he tai chinh (append endpoint) + validate evidence chong ao giac -> opus.
+#   - publish-staging-prs: git push + PR da-repo (outward-facing, kho revert) + xu ly nhanh dich/secret -> opus.
+#   - feature-integration-gate: BASH thuan, khong AI -> model no-op (giong slice-shippable-gate, khong can khai).
+# Khac slice-loop: o do nhieu node preprocessing/decision/summary tam thuong + fanout hang tram lan -> ha sonnet moi dang.
+# args = plain string: <release_id> -> $ARGUMENTS.
+# KHONG khai `inputs:`: engine ep args thanh JSON object khi co `inputs:`, nhung $ARGUMENTS chi tra raw string.
+nodes:
+  - id: feature-integration-smoke
+    description: "Verify toan feature chay thong luong (bac tinh reachability + bac live ATDD suite); fail -> ghi remediation backlog + marker"
+    # WHY: slice-loop build+wire tung slice roi-rac; node nay kiem chung TOAN FEATURE lap thanh mot he chay duoc.
+    # KHONG gate o day (chi kiem + ghi backlog) -> de node feature-remediation con chay duoc; gate deterministic o node sau.
+    prompt: |
+      Release = $ARGUMENTS. Muc tieu: chung minh TOAN FEATURE (tat ca slice da build) lap thanh MOT he chay THONG LUONG
+      truoc khi len staging — KHONG chi tin tung slice le. Node nay CHI kiem + ghi backlog; KHONG gate.
+
+      Clear marker + dir fanout cu (idempotent re-run): mkdir -p NTAPP-output/.work && rm -f "NTAPP-output/.work/.staging_blocked_$ARGUMENTS"
+      && rm -rf NTAPP-output/.work/remediation && mkdir -p NTAPP-output/.work/remediation.
+
+      ===== BAC TINH — endpoint reachability toan feature (luon chay, re) =====
+      Moi (method, path) ma consumer (FE/BFF) THUC goi phai phan giai toi 1 route provider that XUYEN CAC HOP -> bat
+      404 (khong route) / 405 (lech verb) o pham vi TOAN FEATURE (khong chi 1 slice). Cung engine ma slice-integration dung.
+        - Co block reachability trong .bmm-config.yaml: python3 scripts/reachability_check.py --config .bmm-config.yaml
+        - Khong co config/script -> ghi "bac tinh: skipped (project chua khai reachability adapter/dir)" va di tiep.
+      Doc output: moi dong UNRESOLVED = 1 van de can remediate (giu nguyen method + path + hop + source).
+
+      ===== BAC LIVE — chay bo test that slice-loop DA sinh (KHONG can file hand-write) =====
+      KHONG phu thuoc docker-compose.e2e.yml + smoke-e2e.sh (project thuong khong co san -> ban cu chi skip = no-op).
+      Thay bang chay AGGREGATE cac ATDD/E2E test ma slice-loop da sinh cho story mandatory_atdd, qua runner ma
+      framework-setup-per-module da dung:
+        1. Liet ke repo (giong node publish-staging-prs muc 1: .bmm-config.yaml staging_deploy.repos -> *.code-workspace
+           folders[] -> fallback repo hien tai).
+        2. Moi repo: detect framework (playwright.config.* -> npx playwright test; conftest.py/pytest.ini -> pytest;
+           cypress.config.* -> cypress run; go.mod + *_test.go -> go test; ...) va chay TOAN BO suite (khong loc 1 slice)
+           -> day la kiem chung xuyen-slice/xuyen-service that su, khong phai 1-service.
+        3. Neu project CO cung cap docker-compose.e2e.yml + scripts/smoke-e2e.sh -> dung them (uu tien cao hon: service that
+           + smoke suite): docker compose -f docker-compose.e2e.yml up -d; ./scripts/smoke-e2e.sh "$ARGUMENTS"; down.
+        4. Khong co test lan khong co e2e file -> ghi "bac live: static-only" (trung thuc). Bac tinh van la gac chinh.
+
+      ===== GHI REPORT + REMEDIATION BACKLOG (list task de staging chay thong) =====
+      Ghi NTAPP-output/Stage_5_Build_Verify/feature_integration_$ARGUMENTS.md: ket qua 2 bac + tom tat van de.
+      Neu CO bat ky van de (unresolved endpoint / test fail):
+        - touch "NTAPP-output/.work/.staging_blocked_$ARGUMENTS".
+        - Ghi NTAPP-output/Stage_5_Build_Verify/staging_remediation_backlog_$ARGUMENTS.md — moi van de = 1 TASK actionable
+          (day chinh la "list task can lam de staging chay thong luong"). Moi dong:
+            [ ] T-NN | loai | mo ta ngan | endpoint hoac test | provider/owner unit | HUONG XU LY | trang thai: open
+          Phan loai loai + huong xu ly (bam sat evidence — chong ao giac):
+            * missing-endpoint-declared: (method,path) 404/405 NHUNG co canh consumes khai bao toi 1 provider CO tag
+              growable (WBS consumes/used_by + provider growable) -> AUTO-FIXABLE: append endpoint
+              (feature-design --append + dev-story). Evidence = canh khai bao trong project_wbs.md.
+            * contract-verb-mismatch: 405 do consumer/provider lech verb tren endpoint DA co -> cham contract cu ->
+              ESCALATE (fix co the pha consumer khac; can SA/Senior Dev quyet).
+            * ghost-endpoint: 404 va KHONG unit nao trong WBS build path do (khong co canh khai bao) -> PLAN-GAP ->
+              ESCALATE. TUYET DOI khong tu bia provider (nguyen tac chong ao giac cua slice-integration).
+            * test-failure: ATDD/E2E fail -> ESCALATE (ghi unit/story owner + trieu chung). Fix impl/seam di qua BUILDER
+              dung (chay lai slice-loop growable-append / path-b-quick-dev), KHONG sua o staging-deploy (tranh write dien
+              rong duoi attention suy giam). staging-deploy CHI auto 1 loai: append endpoint DA khai bao cho hub growable.
+        - EMIT FANOUT MARKER cho MOI task loai missing-endpoint-declared (AUTO), theo thu tu: task auto thu i (bat dau 1)
+          -> printf -v n '%02d' i; touch "NTAPP-output/.work/remediation/${n}_<task-id>" (vd 01_T-03; ten sau tien to = task id).
+          Task ESCALATE (contract-verb-mismatch / ghost-endpoint / test-failure) KHONG emit marker -> chi nam trong backlog cho
+          human. Moi marker = 1 remediation subagent FRESH-CONTEXT o node sau (chong context overload khi nhieu task).
+      Neu KHONG van de -> ghi report "PASS — feature lap rap chay thong luong"; KHONG tao marker/backlog (dir remediation rong).
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    workspace: false
+
+  - id: feature-remediation
+    description: "FANOUT mc:1 per AUTO-task (fresh-context/task) — append 1 endpoint DA khai bao; escalate-task khong co marker (gate chan)"
+    # WHY fanout (KHONG whole-node): mot node lam HET task -> context tich luy N x (append pipeline F0-F4 + dev-story)
+    # -> overload / lost-in-the-middle -> WRITE code he tai chinh duoi attention suy giam. Tach fanout = moi task 1 subagent
+    # FRESH-CONTEXT chi lo DUNG 1 endpoint (giong dd-per-unit / dev-per-story). mc:1 vi nhieu task co the dung cung file DD
+    # provider + bump dd_version (tranh race ghi). Task ESCALATE khong duoc smoke emit marker -> khong chay o day; gate chan.
+    fanout:
+      over: "NTAPP-output/.work/remediation/*"
+      as: TASK
+      max_concurrency: 1
+    prompt: |
+      ITEM = ${ITEM}. TASK_ID = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_` (vd "01_T-03" -> "T-03").
+      Chi xu ly DUNG task nay (1 subagent = 1 task, fresh-context). Task nay LA loai missing-endpoint-declared (auto-fixable).
+      Context "Cross-iteration ledger" dau prompt = bai hoc slice truoc — can nhac khi append.
+      1. Doc dong task TASK_ID trong NTAPP-output/Stage_5_Build_Verify/staging_remediation_backlog_$ARGUMENTS.md -> lay
+         provider unit + (method, path) endpoint + consumer edge.
+      2. Xac nhan EVIDENCE: canh consumes khai bao trong project_wbs.md (consumer -> provider CO tag growable). KHONG co
+         evidence -> KHONG lam (chong ao giac) -> doi trang thai task = escalated + ghi ly do, bao cao (gate se chan).
+      3. Co evidence -> chay DUNG hai skill, theo thu tu, khong gop lam mot:
+         a. Invoke: Skill(skill="NTAPP-feature-design", args="--append") cho provider unit — bat buoc, khong hand-edit DD.
+            Truyen kem mo ta endpoint + canh consumes.
+         b. Invoke: Skill(skill="bmad-dev-story") impl append-only (GIU nguyen endpoint cu) — bat buoc, khong tu viet code.
+         Xong -> doi trang thai task trong backlog = done.
+      4. TUYET DOI khong lam task khac; KHONG chay reachability toan cuc (gate lam 1 lan sau). Task nay chi lo dung endpoint cua no.
+      Ket thuc bao cao bang 2 dong:
+        SKILL_INVOKED: NTAPP-feature-design | yes|no|skipped | <ly do neu no/skipped>
+        SKILL_INVOKED: bmad-dev-story | yes|no|skipped | <ly do neu no/skipped>
+      (task escalated vi thieu evidence -> ca hai la skipped, day la ket qua dung).
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    depends_on: [feature-integration-smoke]
+    workspace: false
+
+  - id: feature-integration-gate
+    description: "Gate DETERMINISTIC — marker .staging_blocked_* con / reachability con unresolved -> exit 1 (halt truoc PR)"
+    # Cong khong-AI (mirror slice-shippable-gate): khong the bi 'thuyet phuc' pass. Chi qua khi remediation da xoa marker
+    # VA bac tinh sach.
+    bash: |
+      rel=$ARGUMENTS
+      marker="NTAPP-output/.work/.staging_blocked_$rel"
+      backlog="NTAPP-output/Stage_5_Build_Verify/staging_remediation_backlog_$rel.md"
+      script="scripts/reachability_check.py"; cfg=".bmm-config.yaml"
+      fail=0
+      # 1. Backlog con task chua giai quyet (open | escalated | still-open) -> chan.
+      #    Task escalate (contract / ghost / test-fail) PHAI human quyet + fix qua builder dung TRUOC khi len staging.
+      if [ -f "$backlog" ] && grep -Eiq 'trang thai:[[:space:]]*(open|escalated|still-open)' "$backlog"; then
+        echo "FEATURE NON-SHIPPABLE — backlog con task open/escalated (can human quyet / chua fix xong)."
+        echo "Xem $backlog."
+        fail=1
+      fi
+      # 2. Reachability deterministic — nguon su that ve endpoint: tu bat lai missing-endpoint/ghost/contract neu con 404/405.
+      if command -v python3 >/dev/null 2>&1 && [ -f "$script" ] && [ -f "$cfg" ]; then
+        python3 "$script" --config "$cfg" || { echo "STATIC REACHABILITY van con unresolved -> CHAN staging."; fail=1; }
+      fi
+      if [ "$fail" -ne 0 ]; then
+        echo "Gate CHAN: het task open/escalated trong backlog + reachability sach roi resume: vsaf run NTAPP/staging-deploy --resume <runId>"
+        exit 1
+      fi
+      rm -f "$marker"
+      echo "feature-integration-gate PASSED -> feature lap rap chay thong -> tien hanh publish PR staging."
+    depends_on: [feature-remediation]
+    workspace: false
+
+  - id: publish-staging-prs
+    description: "Commit + push + tao PR tat ca repo vao nhanh staging (khong auto-deploy). Khong co nhanh staging -> HOI USER nhanh dich"
+    # Deploy staging = merge nhanh staging (CI/CD kich khi merge), KHONG auto-merge o day -> chi tao PR de nguoi review.
+    prompt: |
+      Release = $ARGUMENTS. Feature da lap rap chay thong (gate PASS). Nhiem vu: commit + push + tao PR TAT CA repo vao
+      nhanh staging. KHONG auto-merge, KHONG auto-deploy — PR de nguoi review/merge (merge nhanh staging se kich CI/CD staging).
+
+      ===== 1. Liet ke repo (project-agnostic) =====
+      Theo thu tu uu tien:
+        a. .bmm-config.yaml key staging_deploy.repos (list duong dan repo) — neu co.
+        b. File *.code-workspace (bootstrap sinh, committed) -> folders[].path.
+        c. Fallback: chi repo hien tai.
+      Chi xu ly repo co gi de push (co commit chua push HOAC co thay doi chua commit); repo sach -> bao cao skipped-clean.
+
+      ===== 2. Xac dinh nhanh dich (co "hoi user" khi thieu) =====
+      Thu tu:
+        a. env STAGING_TARGET_BRANCH hoac .bmm-config.yaml staging_deploy.target_branch -> co thi dung.
+        b. Khong co override -> kiem nhanh `staging` ton tai khong (git show-ref --verify refs/heads/staging HOAC
+           git ls-remote --heads origin staging) o cac repo. Ton tai -> nhanh dich = staging.
+        c. KHONG ton tai o dau -> HOI USER (AskUserQuestion) chon nhanh dich (vd: staging | develop | tao nhanh moi).
+           KHONG tu doan. Neu chay non-interactive (khong hoi duoc) -> DUNG, ghi ro "can chon nhanh dich: set
+           STAGING_TARGET_BRANCH hoac .bmm-config.yaml staging_deploy.target_branch roi resume" va thoat.
+      Dung 1 nhanh dich THONG NHAT cho moi repo.
+
+      ===== 3. Moi repo: commit -> push -> PR =====
+      Voi tung repo:
+        - Commit thay doi con pending (neu co) theo convention commit cua project; repo FE co the can SKIP_PRECOMMIT
+          (theo rule project) -> verify Rule 4/6/9 tay truoc khi bypass. Message ro rang gan release_id.
+        - Push nhanh hien tai len origin.
+        - Tao PR nhanh hien tai -> nhanh dich qua `gh pr create` (hoac `glab` neu GitLab). PR da ton tai -> lay URL,
+          KHONG tao trung.
+      TUYET DOI khong in / khong commit token / secret. Thieu quyen `gh`/`glab` -> bao ro repo nao can tao PR tay + lenh goi y.
+
+      ===== 4. Report =====
+      Bang: repo | nhanh nguon | nhanh dich | PR URL | trang thai (created | exists | skipped-clean | manual-needed).
+      Ket luan: release $ARGUMENTS da san sang review/merge len staging.
+    depends_on: [feature-integration-gate]
+    workspace: false

@@ -1,0 +1,266 @@
+name: Chaos Smoke — Scheduler Orchestrator
+
+# Spec ref: design.md §Chaos & Resilience Testing Plan / FR-15.3 / TSK-9.7
+#
+# Automatable scenarios (run in CI):
+#   C-1  API process kill during schedule creation  — every merge + weekly
+#   C-2  Executor kill mid-workflow (auto-resume)   — every merge + weekly
+#   C-3  Dispatcher kill mid-replay (exactly-once)  — weekly
+#   C-6  Outbox write storm (backpressure)           — weekly
+#
+# Manual-only scenarios (documented in chaos-runbook.md, NEVER auto-run):
+#   C-4  Postgres failover (primary → replica)       — monthly manual
+#   C-5  Network partition (iptables / docker)        — monthly manual
+#
+# AC-adjacent: C-2 and C-3 failures are potential AC-2/AC-3 regressions.
+# The workflow fails loudly and annotates the PR on any scenario failure.
+
+on:
+  # Every-merge smoke: C-1 + C-2 pytest integration tests (fast, < 2min)
+  push:
+    paths:
+      - "scheduler_orchestrator/**"
+      - ".github/workflows/chaos-smoke.yml"
+
+  pull_request:
+    paths:
+      - "scheduler_orchestrator/**"
+      - ".github/workflows/chaos-smoke.yml"
+
+  # Weekly full chaos suite: C-1, C-2, C-3, C-6 shell scripts + full pytest
+  schedule:
+    - cron: "0 3 * * 1"  # Monday 03:00 UTC
+
+  # Manual trigger with scenario selection
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "Comma-separated scenarios (c1,c2,c3,c6 — c4/c5 are manual-only)"
+        required: false
+        default: "c1,c2,c3,c6"
+      full_scale_c6:
+        description: "Run C-6 at full scale (1000/sec × 60s) — staging only"
+        required: false
+        default: "false"
+        type: boolean
+
+# Cancel in-progress runs on new pushes to the same ref
+concurrency:
+  group: chaos-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ── Every-merge: pytest integration smoke tests (C-1, C-2, C-3, C-6) ────────
+  chaos-pytest-smoke:
+    name: Chaos pytest smoke (C-1 C-2 C-3 C-6)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: scheduler_orchestrator
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install scheduler_orchestrator + dev deps
+        run: |
+          uv sync --project . --extra dev
+
+      - name: Run integration smoke tests (chaos + audit-log-grants)
+        env:
+          # Tests use testcontainers; master kill-switch is intentionally off
+          VDS_SCHEDULER_ENABLED: "false"
+        run: |
+          uv run pytest tests/integration \
+            -v \
+            --tb=short \
+            --timeout=120 \
+            -m integration \
+            --junitxml=chaos-smoke-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-smoke-pytest-${{ github.run_id }}
+          path: scheduler_orchestrator/chaos-smoke-results.xml
+
+      - name: Annotate PR on C-2/C-3 failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ⚠️ Chaos Smoke Tests Failed',
+                '',
+                'One or more chaos smoke tests failed on this PR.',
+                '',
+                '**AC-adjacent check**: If `test_c2_*` failed → potential **AC-2 regression** (DBOS checkpoint/replay).',
+                'If `test_c3_*` failed → potential **AC-3 regression** (exactly-once dispatch).',
+                '',
+                'See the workflow run for details. **Do not merge until the root cause is identified.**',
+                '',
+                'Runbook: `scheduler_orchestrator/docs/chaos-runbook.md`'
+              ].join('\n')
+            });
+
+  # ── Weekly: full chaos shell-script suite (C-1, C-2, C-3, C-6) ─────────────
+  chaos-shell-weekly:
+    name: Chaos shell scripts (weekly C-1 C-2 C-3 C-6)
+    runs-on: ubuntu-latest
+    # Only run on schedule or manual dispatch — not every push/PR
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    needs: chaos-pytest-smoke
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vds_chaos
+          POSTGRES_PASSWORD: vds_chaos_pw
+          POSTGRES_DB: vds_chaos_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vds_chaos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install scheduler_orchestrator
+        run: |
+          uv sync --project scheduler_orchestrator --extra dev
+
+      - name: Run Alembic migrations
+        working-directory: scheduler_orchestrator
+        env:
+          VDS_SCHEDULER_DATABASE_URL: "postgresql://vds_chaos:vds_chaos_pw@localhost:5432/vds_chaos_db"
+        run: |
+          uv run alembic upgrade head
+
+      - name: Determine which scenarios to run
+        id: scenarios
+        env:
+          # workflow_dispatch input sanitised into env var before shell use
+          SCENARIOS_INPUT: ${{ github.event.inputs.scenarios || 'c1,c2,c3,c6' }}
+        run: |
+          # Strip any characters that aren't alphanumeric, commas, or hyphens
+          SAFE_SCENARIOS=$(echo "$SCENARIOS_INPUT" | tr -cd 'a-z0-9,-')
+          echo "list=${SAFE_SCENARIOS}" >> "$GITHUB_OUTPUT"
+
+      - name: C-1 — API process kill (schedule persistence)
+        if: contains(steps.scenarios.outputs.list, 'c1')
+        env:
+          VDS_SCHEDULER_ENABLED: "true"
+          VDS_SCHEDULER_DATABASE_URL: "postgresql://vds_chaos:vds_chaos_pw@localhost:5432/vds_chaos_db"
+          CHAOS_TIMEOUT_S: "60"
+        run: |
+          chmod +x scheduler_orchestrator/scripts/chaos/c1-api-kill.sh
+          scheduler_orchestrator/scripts/chaos/c1-api-kill.sh
+
+      - name: C-2 — Executor kill mid-workflow (auto-resume) ⚠️ AC-adjacent
+        if: contains(steps.scenarios.outputs.list, 'c2')
+        env:
+          VDS_SCHEDULER_ENABLED: "true"
+          VDS_SCHEDULER_DATABASE_URL: "postgresql://vds_chaos:vds_chaos_pw@localhost:5432/vds_chaos_db"
+          CHAOS_KILL_DELAY_S: "3"
+          CHAOS_TIMEOUT_S: "90"
+        run: |
+          chmod +x scheduler_orchestrator/scripts/chaos/c2-executor-kill.sh
+          scheduler_orchestrator/scripts/chaos/c2-executor-kill.sh
+
+      - name: C-3 — Dispatcher kill mid-replay (exactly-once) ⚠️ AC-adjacent
+        if: contains(steps.scenarios.outputs.list, 'c3')
+        env:
+          VDS_SCHEDULER_ENABLED: "true"
+          VDS_SCHEDULER_DATABASE_URL: "postgresql://vds_chaos:vds_chaos_pw@localhost:5432/vds_chaos_db"
+          CHAOS_EVENT_COUNT: "100"
+          CHAOS_KILL_AT_ACKED: "50"
+          CHAOS_TIMEOUT_S: "120"
+        run: |
+          chmod +x scheduler_orchestrator/scripts/chaos/c3-dispatcher-kill.sh
+          scheduler_orchestrator/scripts/chaos/c3-dispatcher-kill.sh
+
+      - name: C-6 — Outbox write storm (backpressure)
+        if: contains(steps.scenarios.outputs.list, 'c6')
+        env:
+          VDS_SCHEDULER_ENABLED: "true"
+          VDS_SCHEDULER_DATABASE_URL: "postgresql://vds_chaos:vds_chaos_pw@localhost:5432/vds_chaos_db"
+          # full_scale_c6 is a boolean input; safe to use in env (not shell interpolation)
+          CHAOS_FULL_SCALE: ${{ github.event.inputs.full_scale_c6 == 'true' && 'yes' || 'no' }}
+          CHAOS_DRAIN_TIMEOUT_S: "120"
+        run: |
+          chmod +x scheduler_orchestrator/scripts/chaos/c6-outbox-storm.sh
+          scheduler_orchestrator/scripts/chaos/c6-outbox-storm.sh
+
+      # C-4 and C-5 are NEVER run automatically
+      - name: C-4 C-5 — Manual-only (documented, never auto-run)
+        run: |
+          echo "C-4 (Postgres failover) and C-5 (network partition) are MANUAL scenarios."
+          echo "Run monthly with infra team. See scheduler_orchestrator/docs/chaos-runbook.md"
+          echo "Scripts require CHAOS_MANUAL_OK=yes + infra team present."
+
+      - name: Upload chaos logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-shell-logs-${{ github.run_id }}
+          path: /tmp/chaos-*.log
+          if-no-files-found: ignore
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Chaos Scenario Summary"
+            echo ""
+            echo "| Scenario | Type | Frequency | Status |"
+            echo "|---|---|---|---|"
+            echo "| C-1 API kill | Automated | Every merge + weekly | see steps above |"
+            echo "| C-2 Executor kill ⚠️ AC-adj | Automated | Every merge + weekly | see steps above |"
+            echo "| C-3 Dispatcher kill ⚠️ AC-adj | Automated | Weekly | see steps above |"
+            echo "| C-6 Outbox storm | Automated | Weekly (CI scale) | see steps above |"
+            echo "| C-4 Postgres failover | **Manual** | Monthly | not run in CI |"
+            echo "| C-5 Network partition | **Manual** | Monthly | not run in CI |"
+            echo ""
+            echo "Runbook: \`scheduler_orchestrator/docs/chaos-runbook.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,62 @@
+# Pre-commit configuration for WHO-project/vds-scripts.
+#
+# The local hook below was introduced after commit 4e2cd398 to prevent
+# re-committing the antipatterns that crashed Bitbucket Server's /browse UI
+# with "500 UNKNOWN": macOS .nosync symlinks, absolute-path symlinks,
+# Finder rename-conflict artifacts, and committed worktree directories.
+#
+# Install once per checkout:
+#   uv tool install pre-commit   # or: pipx install pre-commit
+#   pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: check-invalid-symlinks
+        name: Block invalid symlinks, committed worktrees, and macOS rename-conflict files
+        entry: python3 scripts/check-invalid-symlinks.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: agent-core-isolation
+        name: vds_agent_core must not import orchestrators (FR-10.12)
+        entry: .venv/bin/lint-imports --contract agent-core-isolation
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vds-agent-core-no-legacy-typing
+        name: vds_agent_core must use modern typing (no UP006/UP007/UP035) (FR-10.13)
+        entry: .venv/bin/ruff check vds_agent_core/src/ --select UP006,UP007,UP035 --quiet
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vds-agent-core-use-pathlib
+        name: vds_agent_core must use pathlib not os.path (FR-10.13)
+        entry: .venv/bin/ruff check vds_agent_core/src/ --select PTH --quiet
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vds-agent-core-no-debug-markers
+        name: vds_agent_core src must not contain TODO/FIXME/XXX/HACK (FR-10.13)
+        entry: python3 scripts/check-no-debug-markers.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vds-agent-core-future-annotations
+        name: vds_agent_core src (non-init) must have from __future__ import annotations (FR-10.13)
+        entry: python3 scripts/check-future-annotations.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vds-agent-core-no-unittest
+        name: vds_agent_core tests must not use unittest.TestCase or self.assert* (FR-10.13)
+        entry: python3 scripts/check-no-unittest.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

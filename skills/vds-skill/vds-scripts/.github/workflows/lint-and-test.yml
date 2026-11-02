@@ -1,0 +1,90 @@
+name: Lint, Type, Test & Standardize
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  ruff:
+    name: Ruff lint + format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Run ruff check (changed files only)
+        run: |
+          # Phase 3: diff-based — only lint files changed in this PR/branch
+          git diff --name-only HEAD^ HEAD -- "*.py" "*.pyi" | xargs -I{} uv run ruff check {} --no-fix || true
+      - name: Run ruff format check (changed files only)
+        run: |
+          git diff --name-only HEAD^ HEAD -- "*.py" "*.pyi" | xargs -I{} uv run ruff format --check {} || true
+
+  mypy:
+    name: mypy type check (CLI packages)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install workspace
+        run: uv sync --all-packages --extra dev
+      - name: Run mypy on CLI packages
+        run: uv run mypy vds_cli/src/ vds_cli_common/src/ platform_core/src/
+
+  pytest-cli:
+    name: pytest CLI packages + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install workspace
+        run: uv sync --all-packages --extra dev
+      - name: Run pytest with coverage
+        run: |
+          uv run pytest \
+            vds_cli/tests/ \
+            vds_cli_common/tests/ \
+            platform_core/tests/ \
+            --cov=vds_cli \
+            --cov=vds_cli_common \
+            --cov=platform_core \
+            --cov-report=term \
+            -q --tb=short
+
+  validate-cli:
+    name: CLI standardization validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install workspace
+        run: uv sync --project vds_cli --extra dev
+      - name: Run standardization check
+        run: bash scripts/validate-cli-standardization.sh
+      - name: Run alias removal check
+        run: uv run python scripts/_validate_alias_phase2.py
+
+  import-linter:
+    name: Import dependency contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install workspace
+        run: uv sync --all-packages --extra dev
+      - name: Run import-linter
+        run: uv run lint-imports || true

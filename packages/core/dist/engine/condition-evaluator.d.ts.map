@@ -1,0 +1,1 @@
+{"version":3,"file":"condition-evaluator.d.ts","sourceRoot":"","sources":["../../src/engine/condition-evaluator.ts"],"names":[],"mappings":"AACA,UAAU,UAAU;IAClB,MAAM,CAAC,EAAE,MAAM,CAAC;IAChB,gBAAgB,CAAC,EAAE,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,CAAC;CAC5C;AAED,wBAAgB,iBAAiB,CAC/B,SAAS,EAAE,MAAM,GAAG,SAAS,EAC7B,WAAW,EAAE,MAAM,CAAC,MAAM,EAAE,UAAU,CAAC,GACtC,OAAO,CAWT"}

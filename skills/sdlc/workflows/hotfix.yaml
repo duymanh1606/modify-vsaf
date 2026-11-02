@@ -1,0 +1,36 @@
+name: hotfix
+description: "Hotfix — Bug report → Analyze → TDD (RED → GREEN) → Test Gate → Review → Ship"
+
+nodes:
+  - id: analyze
+    command: sdlc-hotfix-analyze
+    workspace: false
+
+  - id: red
+    command: sdlc-hotfix-red
+    depends_on: [analyze]
+
+  - id: green
+    command: sdlc-hotfix-green
+    depends_on: [red]
+
+  - id: test-gate
+    bash: |
+      TEST_CMD='$CONFIG.test_command'
+      case "$TEST_CMD" in *CONFIG.test_command*|'') echo "ERROR: test_command not set in .vsaf/config.yaml — run /sdlc-onboard-code or set it (e.g. test_command: npm test)"; exit 1;; esac
+      $CONFIG.test_command 2>&1
+    depends_on: [green]
+    loop:
+      on_fail: green
+      max_retries: 3
+      inject_error: true
+
+  - id: review
+    command: sdlc-hotfix-review
+    depends_on: [test-gate]
+    workspace: false
+
+  - id: ship
+    command: sdlc-ship
+    depends_on: [review]
+    workspace: false

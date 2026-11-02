@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# vsaf-agy — thin launcher for the deterministic Antigravity VSAF driver.
+#
+# Usage:
+#   vsaf-agy <workflow> "<args>" [extra driver flags...]
+#
+# Examples:
+#   vsaf-agy ad-hoc-per-unit "Thêm endpoint health-check cho Billing"
+#   vsaf-agy slice-loop SLICE-01
+#   vsaf-agy slice-loop SLICE-01 --dry-run            # preview, no agy calls
+#   vsaf-agy path-b-quick-dev "BE-BMS-01 | fix null check"
+#
+# Defaults: prefixes NTAPP/ if the workflow has no slash; passes --yolo
+# (--dangerously-skip-permissions) so the headless driver does not hang on agy
+# permission prompts. Dry-run never uses --yolo.
+#
+# Env:
+#   VSAF_AGY_MODEL=<name>   override --model (e.g. "Gemini 3.1 Pro (High)")
+#   VSAF_AGY_NO_YOLO=1      do NOT auto-approve (agy will prompt; may hang headless)
+set -eo pipefail
+
+# resolve real location even when symlinked onto PATH (macOS bash 3.2 safe)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [ "${SOURCE#/}" = "$SOURCE" ] && SOURCE="$DIR/$SOURCE"
+done
+HERE="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+DRIVER="$HERE/vsaf-agy-driver.cjs"
+
+if [ $# -lt 1 ]; then
+  echo "usage: vsaf-agy <workflow> \"<args>\" [driver flags...]" >&2
+  echo "  e.g. vsaf-agy ad-hoc-per-unit \"Thêm endpoint X\"" >&2
+  echo "       vsaf-agy slice-loop SLICE-01 [--dry-run]" >&2
+  exit 2
+fi
+
+WF="$1"; shift
+case "$WF" in */*) ;; *) WF="NTAPP/$WF" ;; esac   # short name -> NTAPP/<wf>
+
+# first non-flag token = workflow $ARGUMENTS; everything after = passthrough driver flags
+ARGS=""
+if [ $# -gt 0 ]; then
+  case "$1" in --*) ;; *) ARGS="$1"; shift ;; esac
+fi
+
+YOLO="--yolo"
+[ "${VSAF_AGY_NO_YOLO:-0}" = "1" ] && YOLO=""
+for a in "$@"; do [ "$a" = "--dry-run" ] && YOLO=""; done   # never yolo in dry-run
+
+MODEL_ARGS=()
+[ -n "${VSAF_AGY_MODEL:-}" ] && MODEL_ARGS=(--model "$VSAF_AGY_MODEL")
+
+set -- node "$DRIVER" "$WF" --args "$ARGS" "${MODEL_ARGS[@]}" "$@"
+[ -n "$YOLO" ] && set -- "$@" "$YOLO"
+exec "$@"

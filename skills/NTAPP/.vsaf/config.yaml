@@ -1,0 +1,37 @@
+# VSAF engine config — loadConfig() doc file nay o moi vsaf_start / vsaf run / vsaf_resume.
+# Thieu file nay -> DEFAULT_CONFIG (provider claude / model sonnet / isolation ephemeral).
+#
+# !!! QUAN TRONG (verified engine 4.2.7, @ngocsangairvds/vsaf) !!!
+# loadConfig PARSE ca 3 field (provider, model, isolation) NHUNG engine CHI THUC SU DUNG
+# `isolation.exclude`. Cac field con lai bi parse-roi-bo (DEAD o version nay):
+#   - provider / model            -> KHONG wire vao DAGExecutor. Model per-node lay tu WORKFLOW YAML
+#                                    (dag-parser: node.model ?? top-level `model:` ?? 'sonnet'), KHONG tu file nay.
+#                                    Muon doi model 1 stage -> sua `model:` trong .vsaf/workflows/NTAPP/*.yaml
+#                                    (glue NTAPP-vsaf-run dispatch moi node = 1 subagent kem --model = hint do).
+#   - isolation.type/cleanup/max_workspaces -> KHONG truyen vao WorkspaceManager
+#                                    (constructor chi nhan { exclude }; create() khong nhan cac field nay).
+# Giu nguyen cac field DEAD duoi (schema hop le + co the duoc honor o engine version sau) —
+# chi DUNG KY VONG chung co hieu luc bay gio.
+
+# [DEAD @4.2.7] parse nhung khong wire. Provider that su chay node = workflow YAML / mac dinh engine.
+provider: claude
+
+# [DEAD @4.2.7] parse nhung khong wire. Model per-node = workflow YAML `.vsaf/workflows/NTAPP/*.yaml` (`model:`).
+model: sonnet
+
+isolation:
+  # [DEAD @4.2.7] khong doc tu day (type worktree/ephemeral do engine tu quyet, vd resume detect qua .git).
+  type: ephemeral            # worktree tam moi run; cleanup sau khi xong
+  # [DEAD @4.2.7] khong truyen vao WorkspaceManager.
+  cleanup: after_success     # giu worktree khi node FAIL de debug; xoa khi success
+  # [DEAD @4.2.7] khong truyen vao WorkspaceManager.
+  max_workspaces: 5          # tran dong thoi
+  # [ACTIVE] field DUY NHAT engine that su dung -> new WorkspaceManager({ exclude }).
+  exclude:                   # khong copy vao worktree (nhe + nhanh)
+    - node_modules
+    - .git
+    - dist
+    - build
+    - .vsaf/storage
+    - graphify-out           # local doc graph (read-only, moi may tu build)
+    - .gitnexus              # local code graph (read-only)

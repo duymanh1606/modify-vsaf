@@ -1,0 +1,39 @@
+# STEP 01: KHỞI TẠO TEST PLAN (SLICE / UNIT)
+
+> **Acting as:** [Senior QA Engineer](../agents/agent_generate_manual_testcase.md)
+> **Tuân thủ:** [principles/iron_rules.md](../principles/iron_rules.md) · [principles/run_mode_rules.md](../principles/run_mode_rules.md) §4 (Context Ledger)
+
+## 1. Mục tiêu
+Đọc input theo `input_type` (đã detect ở Step 00), phân tích cấu trúc Unit, (lane SLICE) lập thứ tự liên kết E2E tổng thể, và **dựng Context Ledger load-once** (fact dùng chung toàn slice/unit) để các màn sau scoped-reload, chống drift + reload dư.
+
+## 2. Các Bước Thực Hiện
+
+> **RẼ NHÁNH theo `input_type` (từ Step 00):**
+> - `input_type=slice` → chạy đầy đủ bước 1 → 6 (nhiều unit, có xếp thứ tự E2E).
+> - `input_type=unit` → **bỏ qua bước 1 và bước 3** (không có nhiều unit để khảo sát/xếp thứ tự). Chỉ có MỘT unit `{id}`; đi thẳng bước 2 (đọc Tổng quan của chính `{id}_detailed_design.md`) → bước 4 (Ledger rút gọn 1 unit) → bước 5 → bước 6. Ở bước 5, "Danh sách luồng E2E" thu về **luồng nội bộ của 1 unit** (các màn/hành động — hoặc operation nếu `service` — trong chính unit đó), "Mapping FE-BE" chỉ khớp FE ↔ BE mà chính unit này gọi.
+>
+> **RẼ NHÁNH theo `surface_type` (từ Step 00) — quyết định Ở CẤP TARGET, cả luồng đi CHUNG 1 nhánh:**
+> - `surface_type=ui` (target có ≥1 màn) → dùng bộ nhãn màn hình (Action/Verify/Nav) + [unit_classification_rules.md](../principles/unit_classification_rules.md). **Xếp thứ tự E2E theo MÀN**; **mọi unit BE là backend** (map theo story / Background), verify bằng oracle API/DB **trong testcase của màn** — **KHÔNG** đưa BE vào thứ tự như bề mặt riêng. Hành vi **y như trước khi có nhánh service**.
+> - `surface_type=ui` **+ bề mặt mượn** (`units:` toàn BE nhưng `What to build`/`demoable` nêu màn của slice khác) → màn host = `[Nav]`, bề mặt = **cụm hành động** `[Delta Action]`; ngân sách UI theo Delta Manifest, ngân sách BE theo `units:` — [borrowed_surface_rules.md](../principles/borrowed_surface_rules.md).
+> - `surface_type=service` (target KHÔNG có màn nào) → dùng bộ nhãn operation (`[Operation]`/`[Effect]`/`[Downstream]`) + [service_surface_rules.md](../principles/service_surface_rules.md) §1. Không có Giao diện; "luồng" = chuỗi operation/bước job; "Mapping FE-BE" đổi thành **Contract Map**.
+> - **KHÔNG có chế độ trộn 2 nhánh trong 1 lần chạy.** Slice có màn = `ui` toàn bộ; muốn test API 1 HUB riêng thì chạy skill trên chính HUB đó (target no-UI → service).
+
+1. **[lane SLICE] Khảo sát Unit:** Đọc danh sách các unit trong file SLICE theo [principles/unit_classification_rules.md](../principles/unit_classification_rules.md) (Mục 1).
+2. **Phân loại Unit:**
+   - *(`surface_type=ui`)* **lane SLICE:** phân loại vai trò từng unit (Action / Verify / Nav) theo [unit_classification_rules.md](../principles/unit_classification_rules.md) (Mục 2). **lane UNIT:** unit `{id}` mặc định `[Action]`; màn phụ điều hướng vào ghi nhận `[Nav]` nội bộ. Đọc phần Tổng quan trong `_detailed_design` của các FE Unit (lane UNIT: chính `{id}`) để nắm mục đích nghiệp vụ (chưa đọc Logic/Dữ liệu/Giao diện).
+   - *(`surface_type=service`)* phân loại vai trò theo [service_surface_rules.md §1](../principles/service_surface_rules.md): `[Operation]` (endpoint/operation đang test — lane UNIT: chính `{id}`), `[Effect]` (bảng DB/event/audit/state là đích verify → nhúng oracle), `[Downstream]` (service/đối tác được gọi → mock, đưa vào Precondition). Đọc phần Tổng quan trong `_detailed_design` để nắm mục đích nghiệp vụ (chưa đọc chi tiết Logic/Dữ liệu/Hợp đồng).
+3. **[lane SLICE] Xác định Thứ tự E2E:** Sắp xếp luồng và khớp nối backend unit theo [principles/unit_classification_rules.md](../principles/unit_classification_rules.md) (Mục 3). *(lane UNIT: bỏ qua — chỉ 1 unit, không có thứ tự liên-unit.)*
+4. **Dựng Context Ledger (LOAD-ONCE):** Theo [run_mode_rules.md](../principles/run_mode_rules.md) §4, tạo mục `## Context Ledger` trong `implementation_plan.md` gom **fact dùng chung toàn slice** (đọc 1 lần, dùng lại mọi màn):
+   - **Overview:** mục tiêu + danh sách unit kèm vai trò (lane SLICE: nhiều unit Action/Verify/Nav · lane UNIT: chỉ `{id}`).
+   - **Delta Manifest** *(chỉ khi có bề mặt mượn — [borrowed_surface_rules.md §2](../principles/borrowed_surface_rules.md)):* bảng cụm hành động + trích dẫn verbatim + control + oracle, kèm `host_screen` (= `[Nav]`) và `host_slice`. Đây là **biên duy nhất** của ngân sách UI.
+   - **BE contract map:** endpoint / story-code / bảng DB mà nhiều màn cùng tham chiếu (gom từ phần Ma trận đồng bộ / Tổng quan trong `_detailed_design` các BE liên quan — chỉ phần *dùng chung*). *(lane UNIT: chỉ các BE mà chính `{id}` gọi.)* **Với bề mặt `service` đây là Contract Map CHÍNH** (endpoint/request/response/error catalog/side-effect/state machine — theo [service_surface_rules.md §2.3](../principles/service_surface_rules.md)), không phải phần phụ.
+   - **UI Text Source Map (luật provenance — KHÔNG bảng glossary dùng chung):** ghi 1 dòng luật: generate CHỈ đọc DD + qa_report; mọi chuỗi hiển thị verbatim từ DD + cite; DD im lặng / chỉ i18n-key → `[TBD]`+Q&A; label-vs-code drift → runtime qa-robot assert. **Nhãn cụ thể KHÔNG gom về Ledger — mỗi màn tự liệt kê ĐẦY ĐỦ TỪNG element ở [Step 02](step-02-plan-screen.md) Chốt 3.** Nhãn phải-giống-nhau-cross-screen lấy từ Bảng Override (Step 00 §1a).
+   - **Core rules đã nạp:** `view_file` toàn bộ `references/kbkt-generation/00-core/*` MỘT LẦN. Ngoài ra: *(ui)* + toàn bộ `01-ui/*` nếu có ≥1 FE unit (lane UNIT: khi `{id}` là FE) · *(service)* + toàn bộ `10-be/*` (service surface LUÔN áp backend rules). Ghi danh sách file đã nạp vào Ledger; Step 02/03 tái dùng, KHÔNG `view_file` lại (xem [run_mode_rules.md §4](../principles/run_mode_rules.md)).
+   - **Data sources registry (BẮT BUỘC — forcing function chống bịa source_id):** MỞ & đọc `{qa_artifacts}/data_sources.yaml` NGAY tại bước này (registry dùng-chung nhiều slice, theo [dynamic_data_rules.md §4](../principles/dynamic_data_rules.md)). Ghi vào Ledger **bảng `source_id` khả dụng** kèm, với mỗi nguồn: connection (`env_prefix`), `create_api` operation + `reuse_check` (Tier 0) có sẵn. File KHÔNG tồn tại → ghi Ledger `data_sources: [CHƯA CÓ]` và cảnh báo "mọi field Loại 1/2 sẽ phải `[UNRESOLVED-BACKEND]` cho tới khi QA Lead khai registry". **CẤM** Step 03 viết bất kỳ `$db.query/$seed.*` với `source_id` không có trong bảng này.
+   - Nếu slice > 12 màn Action → ghi cảnh báo + khuyến nghị chunk sub-batch (6–8 màn/đợt). *(lane UNIT thường ít màn — bỏ qua cảnh báo này.)*
+5. **Tạo Implementation Plan:** Xuất thông tin dưới dạng `IsArtifact: true`, `ArtifactType: implementation_plan`, `RequestFeedback: true` gồm:
+   - **Context Ledger** (mục 4 ở trên).
+   - **Precondition:** *(ui)* danh sách unit `[Nav]` + tài liệu hiện có *(bề mặt mượn: màn host = ĐÚNG 1 dòng, cấm case kiểm màn)* · *(service)* danh sách `[Downstream]` cần mock + auth/token cần có + tài liệu (`_detailed_design`/integration spec) của chúng. *(lane UNIT: điều kiện vào chính `{id}`.)*
+   - **Danh sách luồng:** *(lane SLICE)* Thứ tự chuyển hướng các unit `[Action]`/`[Verify]` (ui) hoặc chuỗi `[Operation]` (service) dạng text · *(lane UNIT)* các màn/hành động (ui) hoặc operation/bước job (service) nội bộ trong chính `{id}` dạng text (Không vẽ sơ đồ).
+   - **Mapping FE-BE / Contract:** *(ui)* khớp FE-BE theo story code · *(service)* Contract Map (endpoint ↔ side-effect ↔ downstream) theo story code (lane UNIT: chỉ BE mà `{id}` gọi).
+6. **[HITL GATE - DỪNG CHỜ DUYỆT]:** In phân loại unit + Context Ledger ra chat (**có bề mặt mượn → in Delta Manifest, chờ user ký trước khi bung case**). Xác định bề mặt đầu tiên sẽ thực thi — unit `[Action]` (ui) hoặc `[Operation]` (service) (lane UNIT: chính `{id}`). Chờ User phê duyệt trước khi chuyển sang [Step 02](step-02-plan-screen.md). *(Gate này giữ ở MỌI lane — kể cả `batch` — vì là điểm chốt luồng.)*

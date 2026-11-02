@@ -1,0 +1,64 @@
+[project]
+name = "vds-excel-orchestrator"
+version = "0.1.0"
+description = "Excel (.xlsx) file manipulation orchestrator for VDS platform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1.5",           # Primary Excel manipulation (validated with pypi.org)
+    "xlsxwriter>=3.2.9",         # Optional: Advanced writing (validated with pypi.org)
+    "typer>=0.24.1",             # CLI framework (validated with PyPI as of 2026-02-24)
+    "pydantic>=2.12.5",          # Data validation (validated with pypi.org)
+    "pydantic-settings>=2.12.0", # Configuration
+    "structlog>=25.5.0",         # Logging (validated with pypi.org)
+    "rich>=14.3.3",              # Console output (validated with pypi.org)
+    "vds-cli-common",            # Shared environment loader and CLI primitives
+]
+
+[project.scripts]
+vds-excel = "vds_excel_orchestrator.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.11",
+]
+
+[build-system]
+requires = ["hatchling>=1.20.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vds_excel_orchestrator"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/vds_excel_orchestrator", "pyproject.toml", "README.md"]
+
+[tool.uv.sources]
+vds-cli-common = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.11",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    "tests",
+    ".venv",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "C4", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -1,0 +1,7 @@
+{
+  "langfuse": {
+    "host": "https://langfuse.viettel.digital",
+    "public_key": "pk-lf-17e5504d-3a28-47bd-a887-53a417c6a03f",
+    "secret_key": "sk-lf-8049a58f-e436-4b1c-8c6f-d4aad27f15ed"
+  }
+}

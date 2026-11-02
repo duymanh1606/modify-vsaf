@@ -1,0 +1,362 @@
+# =============================================================================
+# .bmm-config.yaml — NTAPP/BMAD config cho repo
+# =============================================================================
+# Copy file này về repo root của FE project, rename thành `.bmm-config.yaml`.
+# Tất cả field optional (skill có default). Override chỉ những field bạn cần.
+#
+# Document layout:
+#   - bmad.*               — global paths cho NTAPP/BMAD ecosystem
+#   - stack.*              — manual override stack-detector
+#   - ds-bootstrap.*       — config /ntapp-ds-bootstrap skill
+#   - ds-build.*           — config /ntapp-ds-build-component skill
+#   - hooks.*              — pre-commit + CI integration
+#   - ds-rules-overrides   — pointer tới repo-specific rules file
+# =============================================================================
+
+
+# =============================================================================
+# bmad: paths cho toàn bộ NTAPP ecosystem
+# =============================================================================
+# IMPORTANT: file `.bmm-config.yaml` này nằm ở **code repo root** (vd: bms-pmt-app/).
+# Skill ds-bootstrap + ds-build-component ĐỌC config này từ code repo, write Master DS
+# về spec repo. Đảm bảo các path bên dưới resolve đúng từ code repo.
+bmad:
+  # === Cross-repo setup (cho NTAPP brownfield: spec repo + code repo riêng) ===
+
+  # Spec repo location (relative từ code repo, hoặc absolute).
+  # Spec repo chứa: PRD, HLD, TechSpec, Master DS metadata, proposed_ds_updates.md.
+  # Code repo (cwd) chứa: Angular/React app code.
+  spec_repo_root: "../business-management-system-doc"
+
+  # Code repo location (default = cwd nếu cwd có package.json).
+  # Set explicit nếu skill chạy từ folder khác.
+  # code_repo_root: "."
+
+  # === Output paths (phần lớn relative tới spec_repo_root) ===
+
+  # Root của design system artifacts (master_token, components_metadata, archive, etc.)
+  # Default: trỏ về spec repo `NTAPP-output/design-system`.
+  # Skill READ + WRITE master_token.json + components_metadata.json + stack-profile.json + archive ở đây.
+  # MULTI-DS (project nhiều FE repo): giá trị này là DS ROOT CỦA REPO NÀY — trỏ
+  # "${spec_repo_root}/NTAPP-output/design-system/{ds_id}" theo registry.yaml
+  # (xem _shared/ds-registry-schema.md + ds-resolution.md nhánh A).
+  design_system_root: "${spec_repo_root}/NTAPP-output/design-system"
+
+  # Root cho phase 1 outputs (PRD, architecture, tech-spec, etc.) — ở spec repo.
+  phase_1_root: "${spec_repo_root}/NTAPP-output/phase-1"
+
+  # Root cho feature deltas (proposed_ds_updates.md, build_report.md, ...) — ở spec repo.
+  # Subfolder: {feature_deltas_root}/{feature_id}/
+  feature_deltas_root: "${spec_repo_root}/NTAPP-output/design-system/feature_deltas"
+
+
+# =============================================================================
+# stack: manual override stack-detector
+# =============================================================================
+# Auto-detect chạy nếu block này absent. Set ở đây khi:
+#  - Repo có nhiều framework (monorepo) — chỉ định framework chính cho DS
+#  - Auto-detect confidence LOW (stack-detector log warning)
+#  - Custom convention không match defaults
+# Bất kỳ field nào không set → fallback auto-detect.
+
+# stack:
+#   framework: angular              # angular | react | vue | svelte | solid | other
+#   language: typescript             # typescript | javascript
+#   ui_library:                      # null nếu custom-only
+#     name: primeng                  # primeng | mui | antd | shadcn | custom | null
+#     version: "16.0.0"
+#   styling:
+#     strategy: scss                 # scss | sass | css | css-modules | tailwind | styled-components | emotion
+#     preprocessor_version: null
+#   build_tool: angular-cli          # angular-cli | vite | webpack | next | nuxt | turbopack | rsbuild | other
+#   component_convention:
+#     file_extension: ts             # ts | tsx | vue | svelte
+#     naming: kebab-case-folder-pascal-class
+#       # angular: kebab-case-folder-pascal-class
+#       # react:   pascal-case-folder | kebab-case-folder
+#       # vue:     pascal-case-folder
+#     location_pattern: "src/app/lib/components/{name}/{name}.component.{ext}"
+#     selector_prefix: "app"         # Angular only
+#   test_framework:
+#     name: jest                     # jest | vitest | jasmine | none
+#     config_path: "jest.config.js"
+#   story_framework:
+#     name: storybook                # storybook | none
+#     config_path: ".storybook/"
+#   package_manager: npm             # npm | yarn | pnpm | bun
+#   discovery_hints:
+#     component_roots:
+#       - "src/app/lib/components"
+#       - "src/app/shared/components"
+#     style_roots:
+#       - "src/styles"
+#       - "src/app"                  # recursive scan
+#     ignore_patterns:
+#       - "**/*.spec.ts"
+#       - "**/*.stories.ts"
+#       - "**/node_modules/**"
+
+
+# =============================================================================
+# ds-bootstrap: config /ntapp-ds-bootstrap skill
+# =============================================================================
+ds-bootstrap:
+  # Per-rule override (xem _shared/best-practices.md mục 4.x cho danh sách)
+  # Mỗi rule có form: rule-name: { enabled, threshold, severity, ... }
+  rules:
+    # 4.1 Spacing GCD detection
+    spacing-multiplier:
+      enabled: true
+      base: auto                     # auto-detect GCD | hoặc fixed: 4 | 5 | 8
+
+    # 4.2 Scale extent (min/max + count)
+    scale-extent:
+      enabled: true
+      max_count: 12                  # cảnh báo nếu > 12 spacing values
+
+    # 4.3 Type scale ratio
+    type-scale-ratio:
+      enabled: true
+      preferred_ratios: [1.125, 1.2, 1.25, 1.333, 1.5]
+
+    # 4.4 Font weight whitelist
+    font-weight:
+      enabled: true
+      allowed: [300, 400, 500, 600, 700]
+
+    # 4.5 Color ramp grouping
+    color-ramp:
+      enabled: true
+      delta_h_threshold: 15          # ΔH ≤ 15° = same family
+
+    # 4.6 Color naming
+    color-naming:
+      enabled: true
+      style: kebab-case              # kebab-case | snake_case | camelCase
+
+    # 4.7 WCAG contrast (HARD validation)
+    wcag-contrast:
+      enabled: true
+      level: AA                      # AA | AAA
+      reject_on_fail: true           # block bootstrap nếu fail (DSO override required)
+
+    # 4.8 Border radius GCD
+    border-radius:
+      enabled: true
+
+    # 4.9 Shadow / elevation
+    shadow-elevation:
+      enabled: true
+      max_count: 6
+
+    # 4.10 Z-index tier
+    z-index-tier:
+      enabled: true
+      tiers: [base, dropdown, sticky, overlay, modal, popover, toast, tooltip]
+
+    # 4.11 Breakpoints
+    breakpoints:
+      enabled: true
+      preferred: [sm, md, lg, xl, 2xl]
+
+    # 4.12 Naming kebab-case (universal)
+    naming-kebab-case:
+      enabled: true
+
+    # 4.13 Semantic coverage
+    semantic-coverage:
+      enabled: true
+      required_paths:
+        - "semantic.color.action.primary"
+        - "semantic.color.text.default"
+        - "semantic.color.background.default"
+        - "semantic.color.feedback.error"
+
+  # Auto-apply HIGH confidence proposals trong bootstrap (skip DSO review)
+  # Default: false — DSO luôn review. Set true cho greenfield rapid iteration.
+  auto_apply_high_confidence: false
+
+  # External tokens default path (override --external-tokens CLI arg)
+  # Format auto-detect: NTAPP v1 hoặc W3C. null = không dùng.
+  external_tokens_path: null
+  # external_tokens_path: "./design-tokens-from-figma.json"
+
+  # Reference tới rules override file (custom rules ngoài best-practices.md built-in)
+  # File này nằm trong design_system_root.
+  rules_override_file: "ds-rules-overrides.md"
+
+  # Behaviour khi conflict resolver phát hiện baseline + external align nhưng code outlier
+  conflict_resolver:
+    auto_apply_external_wins: false  # mặc định DSO review từng case
+
+
+# =============================================================================
+# ds-build: config /ntapp-ds-build-component skill
+# =============================================================================
+ds-build:
+  # === Component scaffold target (relative trong code repo) ===
+  # Path nơi NEW component files sẽ được scaffold. Resolve = `{code_repo_root}/{component_target_root}/{name}/...`.
+  # Default per framework — override nếu repo có convention riêng.
+  # Angular default: src/app/lib/components
+  # React default:   src/components
+  # Vue default:     src/components
+  # Svelte default:  src/lib/components
+  component_target_root: "src/app/lib/components"
+
+  # Source của delta proposal:
+  #   - bmad-stage-4b: standard NTAPP flow (Stage 4b Agent 1 producer)
+  #   - manual: dev viết tay proposal cho non-BMAD repo (L2 portability)
+  # auto: skill detect từ proposal file location (feature_deltas/ folder = bmad)
+  proposal_source: auto
+
+  # Scaffold test stub khi tạo NEW component
+  scaffold_tests: false
+
+  # Scaffold story stub khi tạo NEW component (chỉ nếu stack.story_framework set)
+  scaffold_stories: false
+
+  # Commit message template (placeholders: {feature_id}, {tokens_count}, {components_count}).
+  # Skill hỏi DSO Y/N tại Step 5 HITL trước khi tạo commit local.
+  # Default cho spec repo: "ds-build({feature_id}): apply {tokens_count} tokens, {components_count} components — Master DS update"
+  # Default cho code repo: "ds-build({feature_id}): scaffold/patch components per Master DS"
+  commit_message: "ds-build({feature_id}): apply {tokens_count} tokens, {components_count} components"
+
+  # Lock timeout cho components_metadata atomic update (spec repo)
+  lock_timeout_seconds: 60
+
+  # Behavior khi MODIFIED component có breaking change nhưng proposal khai breaking: false
+  # strict: STOP (block). lenient: log warning, continue.
+  breaking_declaration_mode: strict
+
+
+# =============================================================================
+# ntapp-figma-ingest: config /ntapp-figma-ingest skill
+# =============================================================================
+# CHÚ Ý VỊ TRÍ: skill này chạy từ **SPEC repo** (ngược ds-bootstrap/ds-build chạy từ
+# code repo) → khai block này trong `.bmm-config.yaml` của SPEC repo. Để ở code repo
+# thì skill không thấy.
+#
+# PAT (`FIGMA_TOKEN`) **KHÔNG BAO GIỜ** đặt trong file này — spec repo .bmm-config.yaml
+# là file COMMITTED. Chỉ dùng env var.
+#
+# ntapp-figma-ingest:
+#   # api = REST API (default, headless-safe, batch được — đường ingest chính)
+#   # manual = designer export tay vào inbox/ (không cần PAT; MẤT layout tree nếu chỉ có PNG)
+#   # mcp = Figma Dev Mode MCP — dev-loop interactive, 1 unit/lần, KHÔNG dùng trong VSAF node
+#   source_mode: api
+#
+#   # Lấy từ link nếu bỏ trống: figma.com/design/{file_key}/... hoặc /file/{file_key}/...
+#   file_key: "AbC123XyZ"
+#
+#   # Page chứa màn thật. Rỗng = mọi page (thường kéo theo cả nháp/archive → nên khai).
+#   scope_pages: ["Product", "Flows"]
+#
+#   frame_filter: null                    # regex whitelist tên frame (null = tắt)
+#   ignore_name_patterns:                 # blacklist tên frame
+#     - "^_"
+#     - "^Cover"
+#     - "^Archive"
+#     - "^Draft"
+#     - "^Copy of "
+#     - "^Untitled"
+#
+#   export_scale: 2                       # scale PNG export
+#   max_frames: 80                        # vượt → WARN yêu cầu thu hẹp scope
+#
+#   # Ngưỡng snap giá trị Figma → token gần nhất (px). Chặt quá → token-gap-report dài
+#   # vô ích (designer lệch 1px là chuyện thường); lỏng quá → mất ý đồ thật của designer.
+#   snap_tolerance:
+#     spacing: 2
+#     radius: 2
+#     font_size: 1
+#
+#   token_gap_warn_threshold: 20          # vượt → khuyến nghị chạy ds-bootstrap trước slice
+#   output_root: null                     # null = {ds_root}/_reference/figma
+
+
+# =============================================================================
+# ntapp-feature-design / ntapp-ui-generation: nhánh Figma-first (optional)
+# =============================================================================
+# Khi có Figma vẽ trước, 2 skill này tự đổi hành vi theo figma-manifest.yaml
+# (KHÔNG cần flag): unit `figma_status: mapped` → 4a chạy TRANSCRIBE mode, 4b bật
+# bậc C-1 reuse ladder. Chỉ 2 tinh chỉnh nên set thủ công ở mode Figma-first:
+#
+# ntapp-feature-design:
+#   layout_rules:
+#     # GIỮ false ở mode Figma-first. enforce_hard=true sẽ block những wireframe
+#     # transcribe trung thực từ Figma nhưng vi phạm L1/L2/L7 — sai địa chỉ, vì đó
+#     # là phát hiện về design của designer, không phải lỗi của F3.
+#     enforce_hard: false
+#
+# ntapp-ui-generation:
+#   # report-only: vẫn chấm 7 trục + ghi aesthetic_review, nhưng KHÔNG self-correct
+#   # token. Rubric AI đấu với designer thật là tranh chấp vô ích.
+#   aesthetic_critique: report-only
+#
+# ntapp-ux-sketch:
+#   sketch_preview: off                  # Figma đã là hi-fi thật → khỏi render lại
+
+
+# =============================================================================
+# ntapp-ux-sketch: preview của validation gate Stage 1 (optional overrides)
+# =============================================================================
+# Skill chạy từ SPEC repo. Preview là review surface chính của gate Step 05:
+# human mở HTML trong lavish, click đúng element cần đổi, comment tại chỗ → agent
+# map về ô của Screen Intent Table §4, sửa part, re-render.
+#
+# ntapp-ux-sketch:
+#   # lavish (DEFAULT) = preview HI-FI: component Tailwind/DaisyUI thật, skin bằng
+#   #                    master_token.json của Master DS (Stage 0) → mang identity
+#   #                    product, không phải "library-default look".
+#   # lofi             = wireframe grayscale inline-CSS, không CDN (hành vi v1) —
+#   #                    chọn khi chỉ cần soi flow và muốn tránh anchor visual sớm.
+#   # off              = không render preview (Figma-first, hoặc feature BE-only).
+#   sketch_preview: lavish
+#
+#   # Theme DaisyUI dùng KHI project chưa bootstrap Master DS (greenfield thuần).
+#   # Preview khi đó tự ghi "placeholder look" ở header. Có DS rồi → key này vô hiệu.
+#   sketch_preview_theme: corporate
+#
+# Guardrail: preview KHÔNG phải SSoT (ux_sketch.md canonical) và KHÔNG phải visual
+# đã DS-approve — sketch chỉ ĐỌC master_token.json, quyền chốt component/token vẫn
+# ở Stage 4b. CẤM `lavish-axi share`; đặt LAVISH_AXI_TELEMETRY=0.
+
+
+# =============================================================================
+# hooks: pre-commit + CI integration
+# =============================================================================
+hooks:
+  pre_commit:
+    # Rule 1-6 inherited từ Manual_phase_1.md mục 7. Bật/tắt từng rule:
+    no_hardcoded_tokens: true
+    no_custom_widget_outside_lib: true
+    api_schema_consistency: true
+    feature_id_required: true
+    metadata_freshness: true
+    file_size_limit: true
+
+    # Rule 7: build-component completion (mới)
+    # Block commit nếu feature có [NEW] component proposal mà chưa run build-component.
+    build_component_completion: true
+
+  ci:
+    # CI pipeline gate — fail build nếu các check sau không pass
+    require_bootstrap_artifacts: true   # master_token + components_metadata + stack-profile must exist
+    require_build_report_match: true    # build_report.md checksum khớp proposed_ds_updates.md
+    require_archive_continuity: true    # archive/_v* sequence không gap
+
+
+# =============================================================================
+# Notes
+# =============================================================================
+# - File này nằm ở **code repo root**. Tất cả paths có dạng `${spec_repo_root}/...`
+#   resolve về spec repo (Master DS metadata canonical). Path khác (vd `component_target_root`)
+#   resolve relative tới code repo root (cwd).
+# - File được đọc bởi: stack-detector, normalizer, conflict-resolver,
+#   delta-router, warning-blocker, component-scaffolder, metadata-registrar.
+# - Override priority (highest → lowest):
+#     User prompt input (HITL) > .bmm-config.yaml > stack-profile.json (cached) > skill default
+# - Để skill regenerate stack-profile.json sau khi sửa stack: block,
+#   chạy lại `/ntapp-ds-bootstrap` và reply "re-detect" tại HITL prompt Step 1.
+# - Schema validation: skill check syntax + enum values khi đọc. Lỗi → STOP
+#   với message field path cụ thể.

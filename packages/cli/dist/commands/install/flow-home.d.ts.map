@@ -1,0 +1,1 @@
+{"version":3,"file":"flow-home.d.ts","sourceRoot":"","sources":["../../../src/commands/install/flow-home.ts"],"names":[],"mappings":"AAIA;;;;;;;;;GASG;AAEH,yEAAyE;AACzE,wBAAgB,cAAc,CAAC,IAAI,EAAE,MAAM,GAAG,IAAI,CAUjD;AAED,wBAAgB,aAAa,IAAI,MAAM,CAMtC;AAED;;;;;;GAMG;AACH,wBAAgB,aAAa,CAAC,IAAI,EAAE,MAAM,GAAG,MAAM,GAAG,IAAI,CAIzD;AAED,qEAAqE;AACrE,wBAAgB,eAAe,IAAI,MAAM,EAAE,CAW1C"}

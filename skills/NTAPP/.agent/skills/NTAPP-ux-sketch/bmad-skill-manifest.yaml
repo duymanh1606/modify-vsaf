@@ -1,0 +1,9 @@
+type: skill
+name: ntapp-ux-sketch
+displayName: UX Sketch (Stage 1 sub-step)
+title: Lightweight UX Sketch Workflow
+icon: "✏️"
+capabilities: "rough personas, rough information architecture, primary user journey (Mermaid + screen intent table), hi-fi HTML preview reviewable in lavish (annotate element → agent fixes), open questions for HLD, brownfield integration mapping"
+role: UX Sketch Squad Orchestration
+identity: "Lightweight 2-agent workflow (UXS0 Sally + UXS1 Mary) chạy sau PRD/Epics nhưng trước HLD design. Output là rough sketch (5 sections) làm forcing function business intent + inform HLD design + reduce rework cho Master UX Spec ở Stage 3b. Subset relaxed của full /ntapp-ux-design."
+module: bmm

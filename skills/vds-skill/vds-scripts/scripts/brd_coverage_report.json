@@ -1,0 +1,276 @@
+{
+  "total_required": 16,
+  "total_covered": 16,
+  "coverage_percentage": 100.0,
+  "covered_sections": [
+    "3.1",
+    "3.2",
+    "3.3",
+    "3.4",
+    "3.5",
+    "4.1",
+    "4.10",
+    "4.11",
+    "4.2",
+    "4.3",
+    "4.4",
+    "4.5",
+    "4.6",
+    "4.7",
+    "4.8",
+    "4.9"
+  ],
+  "missing_sections": [],
+  "found_references": {
+    "projects/INSURANCE/analysis/target-state/TARGET_STATE_UPDATE_PLAN.md": [
+      "3.1",
+      "3.3",
+      "3.3.1",
+      "3.3.2",
+      "3.3.3",
+      "3.3.4",
+      "3.3.5",
+      "3.3.7",
+      "3.3.9",
+      "3.4",
+      "3.4.2",
+      "3.5",
+      "4.1",
+      "4.10",
+      "4.2",
+      "4.3",
+      "4.3.2",
+      "4.4",
+      "4.7",
+      "4.9"
+    ],
+    "projects/INSURANCE/analysis/target-state/BRD_COVERAGE_REPORT.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/UPDATE_SUMMARY_VIETNAMESE.md": [
+      "3.3.1",
+      "3.4.3.1"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/BRD_ESTIMATION_UPDATE_SUMMARY.md": [
+      "3.3.1",
+      "3.3.2",
+      "3.3.4",
+      "4.10",
+      "4.11",
+      "4.2",
+      "4.6",
+      "4.7",
+      "4.8",
+      "4.9"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/FINAL_COMPLETION_REPORT.md": [
+      "3.1.1"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/FINAL_SUMMARY.md": [
+      "3.4.3.1",
+      "4.0",
+      "4.8"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/BRD_TO_ESTIMATION_MAPPING.md": [
+      "3.1",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "4.1",
+      "4.10",
+      "4.11",
+      "4.2",
+      "4.3",
+      "4.4",
+      "4.5",
+      "4.6",
+      "4.7",
+      "4.8",
+      "4.9"
+    ],
+    "projects/INSURANCE/analysis/reference/vietin/estimation/BRD_COVERAGE_IMPROVEMENT.md": [
+      "3.4.3"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-renewal-process/insurance-renewal-process-state-machine.md": [
+      "3.5.3"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-renewal-process/insurance-renewal-process-architecture.md": [
+      "3.5.3"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-customer-business/insurance-customer-business-database-schema.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-customer-business/insurance-customer-business-architecture-backup.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-customer-business/insurance-customer-business-architecture-clean.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-customer-business/insurance-customer-business-architecture.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-claim-business/insurance-claim-business-state-machine.md": [
+      "3.5",
+      "3.6"
+    ],
+    "projects/INSURANCE/analysis/current-state/insurance-claim-business/insurance-claim-business-architecture.md": [
+      "3.6"
+    ],
+    "projects/INSURANCE/analysis/target-state/templates/API_CONTRACT_TEMPLATE.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/templates/ML_MODEL_TEMPLATE.md": [
+      "3.3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/templates/SERVICE_ARCHITECTURE_TEMPLATE.md": [
+      "3.3.5",
+      "3.4.2"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/proposal-business/PROPOSAL_BUSINESS_SERVICE_SPEC.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/rating-engine/RATING_ENGINE_SERVICE_SPEC.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/rating-engine/RATING_ENGINE_BUSINESS_LOGIC.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/renewal-process/RENEWAL_PROCESS_SERVICE_SPEC.md": [
+      "3.4.2"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/renewal-process/RENEWAL_PROCESS_API_SPEC.md": [
+      "3.4.2"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/product-catalog/PRODUCT_CATALOG_BUSINESS_LOGIC.md": [
+      "4.3"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/policy-business/POLICY_BUSINESS_API_SPEC.md": [
+      "3.4"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/customer-business/CUSTOMER_BUSINESS_SERVICE_SPEC.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/core-business/claim-business/CLAIM_BUSINESS_SERVICE_SPEC.md": [
+      "3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/service-specifications/integration-ecosystem/authentication-sync-process/SERVICE_SPEC.md": [
+      "4.2",
+      "4.8"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-product-catalog/insurance-product-catalog-api-contracts.md": [
+      "4.3"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-product-catalog/insurance-product-catalog-database-target-schema.md": [
+      "4.3"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-renewal-process/insurance-renewal-process-api-contracts.md": [
+      "3.4.2"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-renewal-process/insurance-renewal-process-database-target-schema.md": [
+      "3.4.2",
+      "3.4.3",
+      "3.4.4"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-renewal-process/insurance-renewal-process-integration-patterns.md": [
+      "3.4.2"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-proposal-business/insurance-proposal-business-api-contracts.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-proposal-business/insurance-proposal-business-database-target-schema.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-policy-business/insurance-policy-business-architecture.md": [
+      "3.4",
+      "4.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-policy-business/insurance-policy-business-database-target-schema.md": [
+      "3.4",
+      "4.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-policy-business/insurance-policy-business-api-contracts.md": [
+      "3.4"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-customer-webview/insurance-customer-webview-architecture.md": [
+      "3.1",
+      "3.3.5",
+      "3.4",
+      "3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-api-event-gateway/insurance-api-event-gateway-architecture.md": [
+      "3.1",
+      "3.2",
+      "4.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-rating-engine/insurance-rating-engine-integration-patterns.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-rating-engine/insurance-rating-engine-api-contracts.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-rating-engine/insurance-rating-engine-database-target-schema.md": [
+      "3.3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-customer-business/insurance-customer-business-api-contracts.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-customer-business/insurance-customer-business-security-architecture.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-customer-business/insurance-customer-business-database-target-schema.md": [
+      "3.1"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-claim-business/insurance-claim-business-api-contracts.md": [
+      "3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-claim-business/insurance-claim-business-database-target-schema.md": [
+      "3.5"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-workflow-service/insurance-workflow-service-architecture.md": [
+      "3.3.5",
+      "3.4"
+    ],
+    "projects/INSURANCE/analysis/target-state/architecture/insurance-authentication-sync-process/insurance-authentication-sync-process-architecture.md": [
+      "4.2",
+      "4.8"
+    ],
+    "projects/LEP/business/lending-business.md": [
+      "4.136.35"
+    ]
+  },
+  "high_priority_services": {
+    "insurance-policy-business": [
+      "3.4",
+      "4.5"
+    ],
+    "insurance-proposal-business": [
+      "3.3.5",
+      "3.3.6",
+      "3.3.7",
+      "3.3.8"
+    ],
+    "insurance-claim-business": [
+      "3.5",
+      "4.6"
+    ],
+    "insurance-customer-business": [
+      "3.1",
+      "3.2",
+      "4.4"
+    ],
+    "insurance-product-catalog": [
+      "4.3",
+      "4.3.1"
+    ],
+    "insurance-rating-engine": [
+      "3.3.5",
+      "4.3.3"
+    ],
+    "insurance-renewal-process": [
+      "3.4.2",
+      "3.4.3",
+      "3.4.4"
+    ]
+  }
+}

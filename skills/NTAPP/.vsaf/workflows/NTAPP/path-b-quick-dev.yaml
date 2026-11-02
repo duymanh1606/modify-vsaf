@@ -1,0 +1,433 @@
+# Workflow 6 — path-b-quick-dev (Lane 2)
+# Muc tieu: Bug fix / refactor / chore tren UNIT CU da co DD. Skip Stage 3-4c (khong techspec/UX/DD/story/ATDD).
+#   Test-first KHONG enforce (khac slice-loop full Hook 10). Output = LOCAL COMMIT (khong push PR; staging qua W10 sau).
+# Phase trong Manual: Lane 2. So sanh 4 lane: xem CLAUDE.md "So sanh 4 workflow build".
+#
+# Chay: vsaf run NTAPP/path-b-quick-dev --args "<unit_id> | <intent>"
+#   - <unit_id>: unit DA TON TAI trong project_wbs.md, DA co Detailed Design (tien dieu kien cung — input-gate enforce).
+#   - <intent> : mo ta thay doi (vd "fix off-by-one o phan trang", "refactor service layer").
+#
+# Ranh gioi voi lane khac (chon sai lane = lang phi / sai guardrail):
+#   - Unit MOI chua co DD          -> ad-hoc-per-unit (Lane 4) hoac slice-loop (Lane 3), KHONG dung lane nay.
+#   - Loi nho khop 5 preset cung   -> express-hotfix (Lane 1).
+#   - Feature moi theo slice plan   -> slice-loop (Lane 3).
+#
+# Khac biet thiet ke so voi slice-loop / ad-hoc (CO Y, dung nham vao nhin la thua):
+#   - KHONG sinh DD / story / ATDD (unit cu da co DD; bmad-quick-dev hien thuc intent truc tiep).
+#   - KHONG HITL demo, KHONG cross-iteration ledger, KHONG knowledge snapshot (Lane 2 = quick path).
+#   - Code review CO (1 pass tren uncommitted+staged), nhung headless-safe: pin scope + cam hoi HITL.
+#     Review PHAI persist ra file (xem node code-review): subagent chet la findings bay mat -> khong con gi
+#     de gate truoc commit, va Hook 10 (neu dev commit tay sau do) doi review file trong 24h.
+#
+# ===== HOP DONG ENGINE (3 cai bat buoc phai giu — sai la workflow chay am tham SAI, khong bao loi) =====
+# E1. $ARGUMENTS trong `bash:` node duoc engine SHELL-ESCAPE (variable-resolver mode='bash' -> ENGINE tu boc
+#     quote san: macOS/Linux boc dau ', Windows boc dau ").
+#     => template TUYET DOI KHONG tu boc quote:  args=$ARGUMENTS   (DUNG — dung tren ca 2 nen tang)
+#                                                args="$ARGUMENTS" (SAI. POSIX: gia tri mang theo dau ' ->
+#                                                `xargs` bao "unterminated quote" -> bien RONG im lang.
+#                                                Windows: thanh args=""VAL"" -> bien RONG + doan sau dau |
+#                                                bi chay NHU MOT LENH).
+#     Fixture chung minh: .vsaf/workflows/NTAPP/tests/args-quoting-fixture.yaml (BARE-OK / QUOTED-LEAK).
+#     Trong `prompt:` node thi KHONG escape (mode='prompt') -> $ARGUMENTS la raw text, doc binh thuong.
+# E2. Bash node KHONG co bien moi truong WORKSPACE (engine chi truyen ARTIFACTS_DIR). `cd "$WORKSPACE"` = no-op.
+# E3. Node thieu `workspace: false` chay trong .vsaf/worktrees/run-* = ban FORK cua SPEC repo (khong phai code repo)
+#     -> test/commit se nham repo va bay theo worktree. MULTI-REPO nen MOI node o day dat `workspace: false`,
+#     va node bash tu `cd` vao CODE repo doc tu state file.
+# Ghi chu ${...}: engine chi thay `${NAME}` cho bien FANOUT (ITEM + ten trong `as:`). Node khong fanout dung
+#     `${var}` van an toan, nhung o day tranh han de sau nay them fanout khong vo; cung KHONG dung `set -u`
+#     (de bien env tuy chon nhu QUICKDEV_SONAR rong khi chua set, khong phai viet ${VAR:-}).
+#
+# ===== STATE FILES (nguon su that giua cac node; thay cho viec moi node tu parse lai $ARGUMENTS) =====
+#   NTAPP-output/.work/quickdev/unit-id      <- input-gate: unit_id da validate (1 dong)
+#   NTAPP-output/.work/quickdev/intent       <- input-gate: intent da trim
+#   NTAPP-output/.work/quickdev/dd-path      <- input-gate: duong dan DD (relative spec repo)
+#   NTAPP-output/.work/quickdev/change-type  <- dd-sync: fix | refactor | chore  (dung cho conventional commit)
+#   NTAPP-output/.work/quickdev/dd-version   <- dd-sync: dd_version hien hanh (vd v2) hoac "unchanged"
+#   NTAPP-output/.work/quickdev/code-repo    <- quick-dev: ABSOLUTE path CODE repo da sua (test/commit doc)
+#   NTAPP-output/.work/quickdev/touched-files<- quick-dev: file da sua, repo-relative, 1 dong/file (scope commit)
+#   NTAPP-output/.work/quickdev/test-cmd     <- test-gate: lenh test da resolve, hoac NONE
+#   NTAPP-output/.work/quickdev/test-stamp   <- test-gate: hash git-state luc tests PASS (story-commit khoi chay lai)
+# .work/ da gitignore -> state la machine-local, input-gate xoa sach dau moi run (khong ke thua run cu).
+
+name: path-b-quick-dev
+description: "Quick dev cho bug fix / refactor / chore. --args '<unit_id> | <intent>'"
+# model = DEFAULT model cho AI node (engine emit hint qua needs_ai.nodes[].model; glue /NTAPP-vsaf-run dispatch
+# moi node thanh 1 subagent kem --model). Lane 2 KHONG co node nao ha xuong sonnet — ca 3 AI node deu la phan
+# doan nang: dd-sync quyet dinh "intent co doi contract khong" (doan sai = DD drift im lang, dung rui ro nhat
+# cua lane nay), quick-dev viet code tien te, code-review la pass adversarial duy nhat truoc commit.
+model: opus
+# args = plain string: "<unit_id> | <intent>" -> $ARGUMENTS. CHI input-gate parse; cac node sau doc state file.
+# KHONG khai `inputs:`: engine ep args thanh JSON object khi co `inputs:`, nhung $ARGUMENTS chi tra raw string.
+nodes:
+  - id: input-gate
+    description: "Parse+validate args, WBS exact-match, DD ton tai; ghi state file cho cac node sau"
+    # hook: Hook 3 stage3-input-gate (relaxed) — unit_id thuoc WBS + DD exists; khong enforce slice_id.
+    # EXACT-MATCH cot dau (port tu ad-hoc-per-unit architecture-design): tranh substring sai
+    #   (`BE-BMS-1` KHONG duoc khop `BE-BMS-10`). Anchored `^| <uid> |` voi space tuy chon 2 ben.
+    # DD-gate: CLAUDE.md ghi "DD ton tai" la tien dieu kien Lane 2 -> enforce ngay day, fail-fast neu thieu.
+    # intent-gate: cu the check o quick-dev (cuoi chuoi) -> keo lua: da chay 2 node AI moi phat hien thieu intent.
+    #   Chuyen len day = fail-fast 0 token.
+    # Parse bang sed thay `xargs`: (a) E1 escaping, (b) xargs an dau quote/backslash trong intent.
+    bash: |
+      spec="$PWD"
+      args=$ARGUMENTS
+      uid=$(printf '%s' "$args" | sed 's/|.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+      intent=$(printf '%s' "$args" | sed 's/^[^|]*//; s/^|//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+      wbs="NTAPP-output/Stage_2_Architecture/project_wbs.md"
+      dd="NTAPP-output/Stage_4_Design/detailed_design/$uid""_detailed_design.md"
+
+      if [ -z "$uid" ]; then
+        echo "Thieu unit_id — args phai dang '<unit_id> | <intent>'."; exit 1
+      fi
+      if [ -z "$intent" ]; then
+        echo "Thieu intent sau dau '|' — args phai dang '<unit_id> | <intent>'."
+        echo "Vi du: --args \"$uid | fix off-by-one o phan trang\""
+        exit 1
+      fi
+      # unit_id di vao regex grep + duong dan file -> chan meta-char de khong khop nham
+      # (vd "BE-CTX-0." se khop dong BE-CTX-01 vi "." la wildcard). WBS id chi alnum + - + _.
+      case "$uid" in
+        *[!A-Za-z0-9_-]*)
+          echo "unit_id [$uid] chua ky tu la — chi cho phep chu, so, '-' va '_'."; exit 1 ;;
+      esac
+      if ! grep -qE "^\|[[:space:]]*$uid[[:space:]]*\|" "$wbs" 2>/dev/null; then
+        echo "unit $uid KHONG co trong project_wbs.md (exact-match cot dau) — kiem tra lai unit_id."; exit 1
+      fi
+      if [ ! -f "$dd" ]; then
+        echo "unit $uid CHUA co Detailed Design ($dd)."
+        echo "Lane 2 yeu cau DD san. Unit moi -> dung ad-hoc-per-unit (Lane 4) / slice-loop (Lane 3) de sinh DD truoc."
+        exit 1
+      fi
+
+      # Pre-check Rule 6 (pre-commit) cho FE unit: thieu ui_schema thi commit o node cuoi se bi CHAN.
+      # Warn-only (khong block): bao som de khoi lam het viec roi vo o buoc cuoi. Rule 6 tu skip khi
+      # Stage 4b chua tung chay (thu muc ui_schema khong ton tai) -> chi canh bao khi thu muc DA co.
+      case "$uid" in
+        SCR-*|WGT-*)
+          schema_dir="NTAPP-output/Stage_4_Design/ui_schema"
+          if [ -d "$schema_dir" ] && [ ! -f "$schema_dir/ui_schema_$uid.json" ]; then
+            echo "WARN: FE unit $uid KHONG co $schema_dir/ui_schema_$uid.json -> pre-commit Rule 6 se CHAN commit."
+            echo "WARN: Lane 2 khong sinh ui_schema. Neu intent that su cham UI -> dung Lane 4 (ad-hoc-per-unit)"
+            echo "WARN: hoac chay /NTAPP-ui-generation cho $uid truoc, roi chay lai lane nay."
+          fi
+          ;;
+      esac
+
+      # State: xoa sach dau run (khong ke thua code-repo/test-stamp cua unit khac tu run truoc).
+      state="$spec/NTAPP-output/.work/quickdev"
+      rm -rf "$state"
+      mkdir -p "$state"
+      printf '%s\n' "$uid"    > "$state/unit-id"
+      printf '%s\n' "$intent" > "$state/intent"
+      printf '%s\n' "$dd"     > "$state/dd-path"
+      echo "OK: unit $uid co trong WBS (exact-match) + DD ton tai."
+      echo "OK: intent = $intent"
+      echo "OK: state ghi tai NTAPP-output/.work/quickdev/ (unit-id, intent, dd-path)."
+    workspace: false
+
+  - id: dd-sync
+    description: "Decision — intent doi contract/behavior ma DD ghi -> refresh DD qua /NTAPP-feature-design (bump dd_version); nguoc lai skip"
+    # hook (post): Hook 4 stage4a-completeness — neu co refresh DD, DD moi van phai du §1, §2.2, §3.2, §5.2.
+    # WHY: Lane 2 sua unit CU. bug fix/chore/refactor-giu-contract -> DD con dung -> skip (giu Lane 2 nhanh cho ~90% ca).
+    #   refactor/intent DOI contract+behavior DD ghi -> code thang se tao DD DRIFT (Rule 3 pass nhung DD sai).
+    #   Thay vi escalate, dong bo DD NGAY: goi /NTAPP-feature-design (chinh skill sinh DD Stage 4a) revise + bump version
+    #   -> quick-dev code theo DD da refresh. ESCALATE chi con cho ca that su VUOT 1 unit (cross-unit/new-unit/Module 0).
+    prompt: |
+      Doc state (input-gate da validate — KHONG parse lai $ARGUMENTS):
+        unit_id = noi dung NTAPP-output/.work/quickdev/unit-id
+        intent  = noi dung NTAPP-output/.work/quickdev/intent
+        DD      = noi dung NTAPP-output/.work/quickdev/dd-path
+      Doc DD hien tai truoc khi phan loai.
+
+      Phan loai intent so voi DD:
+        - bug fix (code lech khoi DD) / chore (khong dong design) / refactor GIU contract+behavior DD ghi
+          -> DD VAN DUNG -> SKIP refresh, ket luan "DD unchanged", tiep tuc.
+        - intent DOI contract/interface/behavior/invariant ma DD dang ghi (vd doi shape response, doi business rule,
+          doi state machine cua CHINH unit nay) -> DD se STALE neu khong cap nhat:
+            1. Invoke: Skill(skill="NTAPP-feature-design", args="unit_id=<unit_id>") — bat buoc, TUYET DOI khong
+               hand-edit DD. CAP NHAT DD phan anh contract/behavior moi theo intent (revise phan thay doi,
+               GIU phan khong doi). BUMP dd_version (vd v1 -> v2).
+            2. DD moi = chuan -> quick-dev se code theo DD da refresh (header code mang dung dd_version moi).
+        - ESCALATE (KHONG tu xu ly o Lane 2) khi intent VUOT BIEN 1 unit hoac VUOT NANG LUC lane nay:
+            * them unit MOI, doi contract CHIA SE voi unit khac / Module 0, hoac thuc chat la feature moi
+              -> DUNG, bao dung slice-loop (Lane 3).
+            * intent doi UI cua FE unit theo huong can component/token MOI cua Design System, hoac can ui_schema
+              moi -> Lane 2 KHONG co node ui-schema / ds-delta / ds-build -> pre-commit Rule 4/6/7 se chan commit
+              -> DUNG, bao dung ad-hoc-per-unit (Lane 4) cho unit do.
+      GHI STATE (bat buoc — story-commit dung de dat conventional-commit type + footer):
+        - NTAPP-output/.work/quickdev/change-type : DUNG 1 tu trong {fix, refactor, chore}
+          (bug fix -> fix | refactor giu contract -> refactor | chore/khong dong design -> chore).
+        - NTAPP-output/.work/quickdev/dd-version  : dd_version hien hanh sau buoc nay (vd "v2"), hoac "unchanged"
+          neu khong refresh DD.
+      Bao cao: loai thay doi | DD co refresh khong | dd_version moi (neu co) | hoac ly do escalate.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-feature-design | yes|no|skipped | <ly do neu no/skipped>
+      (DD unchanged hoac escalate -> skipped, day la duong di dung cua ~90% ca Lane 2).
+    depends_on: [input-gate]
+    workspace: false
+
+  - id: quick-dev
+    description: "Sua code tren unit cu theo intent (full 9 rules pre-commit). Ghi code-repo + touched-files cho node sau"
+    # hook: Hook 9 build-loop (reuse, full) — unit da co WBS entry + DD -> moi rule 1-9 ap duoc.
+    # Convert tu bare `command: bmad-quick-dev` -> prompt node. KHONG phai vi args bi rot: body cua
+    #   .vsaf/commands/bmad-quick-dev.md dung la `$ARGUMENTS` nen chuoi "<unit_id> | <intent>" van den
+    #   duoc skill. Ly do that: command node chi CHUYEN chuoi, khong noi duoc cho skill biet dau la
+    #   unit_id dau la intent, phai doc DD truoc khi sua, va phai ghi code-repo/touched-files ra state.
+    # BAT BUOC ghi code-repo: E2/E3 — node bash sau day KHONG tu biet code repo nao (WBS khong co cot repo,
+    #   engine khong truyen WORKSPACE). Khong co file nay -> test-gate DUNG fail-loud thay vi test nham spec repo.
+    prompt: |
+      Doc state (KHONG parse lai $ARGUMENTS):
+        unit_id = noi dung NTAPP-output/.work/quickdev/unit-id
+        intent  = noi dung NTAPP-output/.work/quickdev/intent
+        DD      = noi dung NTAPP-output/.work/quickdev/dd-path
+
+      Invoke: Skill(skill="bmad-quick-dev", args="unit_id=<unit_id>") — bat buoc, khong thay the bang cach tu sua code.
+      Hien thuc intent tren unit <unit_id>. NGUON SU THAT (doc DD truoc khi sua):
+        - intent (yeu cau moi) = DRIVER -> quyet dinh THAY DOI GI / VI SAO.
+        - DD cu = RANG BUOC -> contract/interface/invariant/pattern unit phai giu; KHONG pha phan DD khong dong cham.
+        - Phan giai theo loai thay doi:
+            * bug fix  -> DD la CHUAN DUNG (mo ta hanh vi dung); intent chi cho cho CODE LECH khoi DD -> keo code ve dung DD.
+            * chore    -> khong dong design -> DD nguyen ven.
+            * refactor -> doi CACH TO CHUC BEN TRONG nhung GIU contract/behavior DD ghi -> DD §contract la guardrail.
+        - DD da duoc node dd-sync dong bo TRUOC: neu intent doi contract/behavior thi DD da refresh (dd_version moi)
+          -> code theo DD HIEN HANH, header mang dung dd_version moi. KHONG con DD drift.
+        - Neu DANG code moi phat hien thay doi VUOT 1 unit (cross-unit / new-unit / Module 0 contract) ma dd-sync
+          chua bao -> DUNG, escalate slice-loop (Lane 3). KHONG tu y noi rong scope.
+        - Moi rule 1-9 pre-commit ap dung day du (header id+dd_version, WBS lookup, DD reference, token/infra/emoji...).
+          Code mang header dung unit_id. KHONG mo rong scope ngoai intent.
+
+      GHI STATE (BAT BUOC — node test-gate/story-commit la bash, KHONG tu suy ra duoc):
+        1. NTAPP-output/.work/quickdev/code-repo : duong dan TUYET DOI cua CODE repo vua sua (dung 1 dong, khong
+           newline thua). Multi-repo: la repo chua file vua sua (vd /Users/.../agent-banking-process-service),
+           TUYET DOI KHONG phai spec repo. Hint neu co: NTAPP-output/Stage_5_Build_Verify/bug-batches/_unit-path-map.yaml
+           (containers[].repo) — chi la goi y, uu tien duong dan file that vua sua.
+        2. NTAPP-output/.work/quickdev/touched-files : moi file da sua/them/xoa, duong dan RELATIVE so voi code repo,
+           1 dong 1 file (dung de git add dung pham vi). Sua o >1 repo -> DUNG, bao escalate (Lane 2 = 1 unit / 1 repo).
+      Bao cao: file da sua, code repo, va dd_version tren header code.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-quick-dev | yes|no | <ly do neu no>
+    depends_on: [dd-sync]
+    workspace: false
+
+  - id: test-gate
+    description: "Chay test suite trong CODE repo (stack-aware: npm/go/maven/gradle/pytest); fail -> quay lai quick-dev (max 3 lan)"
+    # E2/E3: node KHONG con `cd "$WORKSPACE"` (bien do khong ton tai) va dat workspace:false roi tu cd vao CODE repo
+    #   doc tu state -> truoc day node chay trong worktree fork cua SPEC repo: khong co manifest nao -> "khong detect
+    #   duoc runner" -> WARN + pass -> test KHONG BAO GIO chay ma workflow van xanh.
+    # Stack-aware: detect runner theo manifest repo -> chay duoc cho BE Python/Go, khong chi Node. Khong detect duoc
+    #   -> WARN + pass (test-first KHONG enforce o Lane 2), tranh loop vo ich.
+    # `npm test` chi dung khi package.json co script "test" (giong Hook 10) — khong thi npm exit non-zero vi
+    #   "Missing script: test" va loop 3 lan quick-dev vo nghia.
+    # test-stamp: hash git-state (HEAD + diff + untracked) luc PASS — cung cong thuc cache cua Hook 10. story-commit
+    #   so lai: khong doi -> khoi chay lai ca suite (tiet kiem 1 luot test / run ma khong mat do tin cay).
+    # timeout: engine default 5 phut cho bash node -> mvn/gradle test dai hon la node "fail" gia + loop lai quick-dev.
+    timeout: 1800000
+    bash: |
+      spec="$PWD"
+      state="$spec/NTAPP-output/.work/quickdev"
+      if [ ! -f "$state/code-repo" ]; then
+        echo "FAIL: khong thay $state/code-repo — node quick-dev chua ghi duong dan CODE repo."
+        echo "Khong doan repo (chay test trong spec repo = xanh gia). Sua node quick-dev roi resume."
+        exit 1
+      fi
+      repo=$(head -n1 "$state/code-repo" | sed 's/[[:space:]]*$//')
+      if [ -z "$repo" ] || [ ! -d "$repo" ]; then
+        echo "FAIL: code repo khong ton tai: [$repo]"; exit 1
+      fi
+      cd "$repo" || exit 1
+      echo "[test-gate] code repo = $repo"
+
+      cmd=""
+      if [ -f package.json ] && grep -q '"test"' package.json; then cmd="npm test"
+      elif [ -f go.mod ]; then cmd="go test ./..."
+      elif [ -f pom.xml ]; then cmd="mvn -q test"
+      elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then cmd="./gradlew test"
+      elif [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f setup.cfg ] || [ -f conftest.py ]; then cmd="pytest -q"
+      fi
+
+      if [ -z "$cmd" ]; then
+        printf '%s\n' "NONE" > "$state/test-cmd"
+        rm -f "$state/test-stamp"
+        echo "WARN: khong detect duoc test runner trong $repo (package.json script test / go.mod / pom.xml / gradle / pytest)"
+        echo "WARN: -> bo qua buoc test (Lane 2 KHONG enforce test-first). Commit se KHONG co test bao ve."
+        exit 0
+      fi
+
+      printf '%s\n' "$cmd" > "$state/test-cmd"
+      echo "[test-gate] chay: $cmd"
+      if ! sh -c "$cmd" 2>&1; then
+        rm -f "$state/test-stamp"
+        echo "FAIL: test suite fail -> quay lai quick-dev (loop)."
+        exit 1
+      fi
+      stamp=$( { git rev-parse HEAD 2>/dev/null
+                 git diff HEAD 2>/dev/null
+                 git status --porcelain 2>/dev/null
+               } | { command -v shasum >/dev/null 2>&1 && shasum -a 256 || sha256sum; } | cut -c1-16 )
+      printf '%s\n' "$stamp" > "$state/test-stamp"
+      echo "[test-gate] PASS — git-state stamp = $stamp"
+    depends_on: [quick-dev]
+    workspace: false
+    loop:
+      on_fail: quick-dev
+      max_retries: 3
+      inject_error: true
+
+  - id: code-review
+    description: "Code review changeset (headless-safe: pin scope uncommitted+staged, cam hoi HITL) + PERSIST findings ra reviews/"
+    # Convert tu bare `command: bmad-code-review` -> prompt node (port pattern ad-hoc/slice code-review):
+    #   bmad-code-review co checkpoint "wait for human" -> bare command headless se TREO/exit. Pin scope + cam HITL.
+    # Lane 2 KHONG ghi knowledge/ledger (khac ad-hoc) — CO Y theo design table CLAUDE.md (quick path).
+    # NHUNG PHAI persist REVIEW REPORT: (a) subagent chet -> findings bay mat, node commit khong con gi de gate ->
+    #   truoc day workflow van commit du review tim ra blocker; (b) Hook 10 doi >=1 review file trong reviews/ 24h
+    #   neu sau nay dev commit tay bang /bmad-quick-dev --commit.
+    prompt: |
+      Doc state: unit_id = noi dung NTAPP-output/.work/quickdev/unit-id;
+                 code repo = noi dung NTAPP-output/.work/quickdev/code-repo (review trong repo NAY).
+      Invoke: Skill(skill="bmad-code-review", args="scope=uncommitted+staged") — bat buoc, khong thay the bang cach
+      tu doc diff roi nhan xet: gia tri nam o 3 lop review doi khang chay song song + triage co cau truc.
+      Pham vi = toan bo thay doi quick-dev vua tao tren unit nay.
+      KHONG hoi HITL (headless se treo neu roi vao checkpoint "wait for human") — review tu dong roi XUAT findings.
+      Muc tieu: 1 pass adversarial tren changeset cua unit, bao loi/risk truoc khi commit.
+
+      PERSIST review report — ghi DE (overwrite, idempotent per unit) DUNG file
+      NTAPP-output/Stage_5_Build_Verify/reviews/quickdev_<unit_id>.md (mkdir -p truoc; duong dan ghim cung —
+      node story-commit doc DUNG path nay; lo ghi cho khac thi MOVE ve day). Noi dung:
+        ---
+        unit_id: <unit_id>
+        change_type: <fix|refactor|chore — lay tu NTAPP-output/.work/quickdev/change-type>
+        blocker: <yes|no>
+        reviewed_at: <UTC ISO8601>
+        ---
+        ## Findings
+        - [severity] <file>:<line> — <mo ta> — (da-sua | con-lai)
+        ## Ghi chu
+        <risk con lai / dieu nguoi review nen xem tay>
+      LUAT dat `blocker: yes` (story-commit se CHAN commit): tren DUNG phan da thay doi co it nhat 1 trong
+        - sai dung/logic (ke ca off-by-one, sai dieu kien bien, sai lam tron/so tien),
+        - lo secret / lo du lieu nhay cam / thieu authz-ownership o cho vua sua,
+        - pha contract ma DD dang ghi (lech DD sau khi dd-sync da chot),
+        - test vua them KHONG thuc su assert hanh vi (test rong / luon xanh).
+      KHONG dat blocker cho: style/naming, no nan co san NGOAI diff, de xuat refactor tuong lai -> ghi vao Findings
+      voi severity thap la du. Khong co finding nao -> van ghi file voi `blocker: no` va Findings "—"
+      (dong review, tranh lo hong audit).
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-code-review | yes|no | <ly do neu no>
+      Bao cao: duong dan review file + blocker yes/no + so finding theo severity.
+    depends_on: [test-gate]
+    workspace: false
+
+  - id: story-commit
+    description: "Gate review-blocker + tests roi LOCAL COMMIT trong CODE repo (KHONG push PR). Deploy staging qua W10 sau."
+    # hook (pre): Hook 10 verification-gate KHONG fire o day — hook do trigger tu UserPromptSubmit khop
+    #   `/bmad-quick-dev --commit` | `/bmad-dev-story --commit` | finishing-a-development-branch. Node nay commit
+    #   bang git truc tiep -> chi co pre-commit hook (9 rules) chan. Vi vay 3 gate cua Hook 10 duoc lam TAI DAY
+    #   (tests + code-review da chay + khong con blocker), dung muc "relaxed" cua Lane 2: khong ATDD, khong Sonar
+    #   mac dinh (CLAUDE.md: Lane 2 = test + lint).
+    # E2/E3: cd vao CODE repo tu state (truoc day `cd "$WORKSPACE"` = no-op -> `git add -A && git commit` chay
+    #   trong worktree fork cua SPEC repo: code that KHONG duoc commit, con worktree tam thi bi ban).
+    # Sonar: opt-in QUICKDEV_SONAR=1 va HONOR exit code. Truoc day goi vo dieu kien nhung khong doc ket qua
+    #   (khong set -e) -> chi ton vai phut cho `-Dsonar.qualitygate.wait=true` roi bo qua ket qua.
+    timeout: 1800000
+    bash: |
+      spec="$PWD"
+      state="$spec/NTAPP-output/.work/quickdev"
+      uid=$(head -n1 "$state/unit-id" 2>/dev/null | sed 's/[[:space:]]*$//')
+      if [ -z "$uid" ]; then echo "FAIL: khong doc duoc $state/unit-id"; exit 1; fi
+      repo=$(head -n1 "$state/code-repo" 2>/dev/null | sed 's/[[:space:]]*$//')
+      if [ -z "$repo" ] || [ ! -d "$repo" ]; then
+        echo "FAIL: code repo khong ton tai: [$repo] (quick-dev phai ghi $state/code-repo)"; exit 1
+      fi
+      review="$spec/NTAPP-output/Stage_5_Build_Verify/reviews/quickdev_$uid.md"
+      ctype=$(head -n1 "$state/change-type" 2>/dev/null | tr -d '[:space:]')
+      case "$ctype" in fix|refactor|chore) : ;; *) ctype="fix" ;; esac
+      ddv=$(head -n1 "$state/dd-version" 2>/dev/null | tr -d '[:space:]')
+      if [ -z "$ddv" ]; then ddv="unknown"; fi
+      intent=$(head -n1 "$state/intent" 2>/dev/null | cut -c1-60)
+
+      # ── Gate 1: review report phai ton tai (findings khong duoc bay mat cung subagent)
+      if [ ! -f "$review" ]; then
+        echo "FAIL: khong thay review report $review — node code-review chua persist findings."
+        echo "Khong commit khi khong con bang chung review. Ghi dung file do (hoac move ve day) roi resume."
+        exit 1
+      fi
+      # ── Gate 2: review co blocker -> KHONG commit (escape co y thi dat QUICKDEV_ALLOW_BLOCKER=1)
+      if grep -qiE '^blocker:[[:space:]]*yes' "$review"; then
+        if [ "$QUICKDEV_ALLOW_BLOCKER" = "1" ]; then
+          echo "WARN: review co blocker nhung QUICKDEV_ALLOW_BLOCKER=1 -> van commit (tu chiu trach nhiem)."
+        else
+          echo "FAIL: code-review danh dau blocker: yes -> KHONG commit."
+          echo "Xem $review, sua roi resume. Co y bo qua: QUICKDEV_ALLOW_BLOCKER=1 vsaf resume <runId>"
+          exit 1
+        fi
+      fi
+
+      cd "$repo" || exit 1
+      echo "[story-commit] code repo = $repo | unit = $uid | change_type = $ctype | dd_version = $ddv"
+
+      # ── Gate 3: tests. Chi chay lai khi git-state DOI so voi luc test-gate PASS (vd code-review vua sua code).
+      now=$( { git rev-parse HEAD 2>/dev/null
+               git diff HEAD 2>/dev/null
+               git status --porcelain 2>/dev/null
+             } | { command -v shasum >/dev/null 2>&1 && shasum -a 256 || sha256sum; } | cut -c1-16 )
+      prev=$(head -n1 "$state/test-stamp" 2>/dev/null | tr -d '[:space:]')
+      tcmd=$(head -n1 "$state/test-cmd" 2>/dev/null)
+      if [ "$tcmd" = "NONE" ] || [ -z "$tcmd" ]; then
+        echo "WARN: khong co test runner -> commit KHONG co test bao ve (Lane 2 khong enforce test-first)."
+      elif [ -n "$prev" ] && [ "$prev" = "$now" ]; then
+        echo "[story-commit] git-state khong doi tu test-gate ($now) -> tests da PASS cho dung state nay, skip chay lai."
+      else
+        echo "[story-commit] git-state doi ($prev -> $now) -> chay lai: $tcmd"
+        if ! sh -c "$tcmd" 2>&1; then echo "FAIL: test fail -> KHONG commit"; exit 1; fi
+      fi
+
+      # ── Gate 4 (opt-in): SonarQube. Mac dinh OFF cho dung strictness "relaxed" cua Lane 2.
+      if [ "$QUICKDEV_SONAR" = "1" ]; then
+        if command -v sonar-scanner >/dev/null 2>&1; then
+          echo "[story-commit] QUICKDEV_SONAR=1 -> sonar-scanner (quality gate wait)"
+          if ! sonar-scanner -Dsonar.qualitygate.wait=true 2>&1; then
+            echo "FAIL: SonarQube quality gate FAIL -> KHONG commit"; exit 1
+          fi
+        else
+          echo "WARN: QUICKDEV_SONAR=1 nhung khong tim thay sonar-scanner -> bo qua."
+        fi
+      fi
+
+      # ── Stage dung pham vi: uu tien touched-files cua quick-dev (git add -A quet ca WIP khong lien quan
+      #    cua dev trong repo). Thieu/rong -> fallback -A va noi ro.
+      tf="$state/touched-files"
+      if [ -s "$tf" ]; then
+        # `|| [ -n "$f" ]`: file do AI ghi co the KHONG co newline cuoi -> `read` tra non-zero
+        # kem noi dung -> thieu vong nay la mat dong cuoi (commit sot file) im lang.
+        while IFS= read -r f || [ -n "$f" ]; do
+          if [ -n "$f" ]; then git add -- "$f" 2>/dev/null || echo "WARN: khong add duoc [$f]"; fi
+        done < "$tf"
+        left=$(git status --porcelain | grep -vE '^[MADRC]' | head -20)
+        if [ -n "$left" ]; then
+          echo "WARN: con thay doi CHUA stage (khong nam trong touched-files) — kiem tra xem co thuoc intent khong:"
+          printf '%s\n' "$left"
+        fi
+      else
+        echo "WARN: khong co touched-files -> git add -A (quet toan repo, co the keo theo WIP khong lien quan)."
+        git add -A
+      fi
+
+      if git diff --cached --quiet; then
+        echo "Khong co thay doi da stage -> KHONG commit (idempotent: co the da commit o lan chay truoc)."
+        exit 0
+      fi
+      echo "[story-commit] file se commit:"
+      git diff --cached --name-status
+
+      if ! git commit -m "$ctype($uid): $intent" \
+                      -m "dd_version: $ddv | lane: path-b-quick-dev | review: NTAPP-output/Stage_5_Build_Verify/reviews/quickdev_$uid.md"; then
+        echo "FAIL: commit BI CHAN (pre-commit 9 rules hoac hook khac) — xem log tren."
+        echo "Sua nguyen nhan (header id+dd_version / WBS entry / DD / token / ui_schema / emoji) roi resume."
+        echo "KHONG dung SKIP_PRECOMMIT cho Lane 2 (do la escape cua Lane 1 express + phai compensate 48h)."
+        exit 1
+      fi
+      echo "[story-commit] DONE: $(git rev-parse --short HEAD) tren $(git rev-parse --abbrev-ref HEAD)"
+      echo "Buoc tiep: KHONG push PR o Lane 2. Deploy staging qua /NTAPP-vsaf-staging-deploy <release_id> (W10)."
+      if [ "$ddv" != "unchanged" ] && [ "$ddv" != "unknown" ]; then
+        echo "LUU Y: DD da refresh ($ddv) o SPEC repo va CHUA duoc commit — commit spec artifact rieng neu can."
+      fi
+    depends_on: [code-review]
+    workspace: false

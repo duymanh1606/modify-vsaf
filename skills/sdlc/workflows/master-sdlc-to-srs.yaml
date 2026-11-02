@@ -1,0 +1,48 @@
+name: master-sdlc-to-srs
+description: "Truncated SDLC for drift testing — Discovery → PRD → Architecture → SRS → Drift Check. Stops after drift-check (no implement/test/review/ship)."
+nodes:
+  - id: discovery
+    command: sdlc-discovery
+    workspace: false
+  - id: prd
+    command: sdlc-prd
+    depends_on: [discovery]
+    workspace: false
+    context: fresh
+  - id: prd-gate
+    prompt: |
+      Human gate for the PRD. Output of node "prd": $prd.output
+      Locate the PRD file it produced (.vsaf/docs/features/*/02-prd.md), summarize
+      the key points for the user, and ask whether they approve (collect feedback
+      if not). If approved: set the PRD file's gate line to
+      "## Gate: APPROVED by <user> on <date>" (replace a PENDING gate if present),
+      then output exactly: APPROVED. If rejected: output exactly:
+      REJECTED — <user feedback>.
+    depends_on: [prd]
+    workspace: false
+  - id: architecture
+    command: sdlc-architecture
+    depends_on: [prd-gate]
+    workspace: false
+    context: fresh
+  - id: srs
+    command: sdlc-srs
+    depends_on: [architecture]
+    workspace: false
+    context: fresh
+  - id: srs-gate
+    prompt: |
+      Human gate for the SRS. Output of node "srs": $srs.output
+      Locate the SRS file it produced (.vsaf/docs/features/*/05-srs.md), summarize
+      the key points for the user, and ask whether they approve (collect feedback
+      if not). If approved: set the SRS file's gate line to
+      "## Gate: APPROVED by <user> on <date>" (replace a PENDING gate if present),
+      then output exactly: APPROVED. If rejected: output exactly:
+      REJECTED — <user feedback>.
+    depends_on: [srs]
+    workspace: false
+  - id: drift-check
+    command: sdlc-drift-check
+    depends_on: [srs-gate]
+    workspace: false
+    context: fresh

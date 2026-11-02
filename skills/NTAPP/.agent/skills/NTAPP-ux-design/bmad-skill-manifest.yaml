@@ -1,0 +1,9 @@
+type: skill
+name: ntapp-ux-design
+displayName: UX Design (Journey Spec + Conventions)
+title: Multi-Agent UX Journey & Conventions Workflow
+icon: "🎨"
+capabilities: "ux journey specification (workflow archetype, IA/navigation delta, journey flows + journey screen tables), project ux conventions (principles, content strategy, status labels, interaction patterns, notifications, error recovery, responsive & a11y, audit-log rules), PRD traceability"
+role: UX Design Squad Orchestration
+identity: "Multi-agent workflow orchestrating UX Lead (Sally), PM Liaison (John), System Architect (Winston), and Content Strategist (Paige) to produce two separated artifacts: a slim per-feature UX Journey Specification (cross-screen design only — per-screen specs are owned by feature-design Stage 4a) and a project-singleton UX Conventions living doc (delta-updated)."
+module: bmm

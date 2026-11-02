@@ -1,0 +1,98 @@
+# Prometheus configuration for VDS PDF Orchestrator production monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'vds-pdf-orchestrator'
+    environment: 'production'
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # VDS PDF Orchestrator metrics
+  - job_name: 'vds-pdf-orchestrator'
+    static_configs:
+      - targets: ['vds-pdf-orchestrator:8080']
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 10s
+
+  # Node Exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # cAdvisor for container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+
+# Recording rules for better performance
+recording_rules:
+  - name: vds-pdf-orchestrator
+    rules:
+      # PDF processing performance
+      - record: vds_pdf_processing_rate
+        expr: rate(pdf_processing_duration_seconds_count[5m])
+
+      - record: vds_pdf_processing_duration
+        expr: histogram_quantile(0.95, rate(pdf_processing_duration_seconds_bucket[5m]))
+
+      # Request patterns
+      - record: vds_pdf_requests_per_minute
+        expr: sum(rate(http_requests_total[1m])) by (method, endpoint)
+
+      # Error rates
+      - record: vds_pdf_error_rate
+        expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))
+
+      # Resource usage
+      - record: vds_pdf_memory_usage
+        expr: process_resident_memory_bytes / 1024 / 1024
+
+      - record: vds_pdf_cpu_usage
+        expr: rate(process_cpu_seconds_total[1m])
+
+      # MCP session metrics
+      - record: vds_pdf_active_sessions
+        expr: mcp_active_sessions_total
+
+      - record: vds_pdf_session_duration
+        expr: histogram_quantile(0.95, rate(mcp_session_duration_seconds_bucket[5m]))
+
+      # Security events
+      - record: vds_pdf_security_events
+        expr: sum(rate(security_events_total[1m])) by (event_type)
+
+      # PII detection metrics
+      - record: vds_pdf_pii_detections
+        expr: sum(rate(pii_detections_total[1m])) by (pii_type)
+
+      # Compliance metrics
+      - record: vds_pdf_compliance_score
+        expr: compliance_score * 100

@@ -1,0 +1,538 @@
+# Workflow 4 — slice-loop (workflow quan trong nhat)
+# Muc tieu: Build 1 SLICE-N end-to-end tu Stage 3 den demo. Lap cho tung slice theo DAG (blocked_by).
+# Phase trong Manual: Stage 3 -> 4 -> 5 per slice.
+#
+# Chay: vsaf run NTAPP/slice-loop --args "SLICE-3"                 (feature DAU TIEN, bo cuc phang)
+#       vsaf run NTAPP/slice-loop --args "<feature>/SLICE-3"       (tu feature THU HAI tro di)
+#
+# $ARGUMENTS = slice_id, VA CO THE mang tien to feature. Vi MOI duong dan artifact duoi day dung dang
+# "<thu-muc>/$ARGUMENTS", chi can truyen "<feature>/SLICE-3" la ca 6 ho artifact tu dong nam duoi thu muc
+# feature — khong sua them dong nao. Feature dau tien giu bo cuc phang (271 tham chieu duong dan trong 85
+# tai lieu, doi ten hoi to khong dang). Danh tinh chinh thuc nam o truong `feature:` trong front-matter
+# manifest slice, khong suy tu duong dan.
+#
+# TIEN TO FEATURE LA DE GOM NHOM, KHONG PHAI DE CHONG VA CHAM SO. So slice KHONG bi dung lai: Stage 2b
+# re-run chi NOI THEM (do that tren paybiz: snapshot _v1 co SLICE-1..22, ban song co SLICE-1..25 — them
+# 23-25, khong so nao bi dung cho slice khac), va `slices/` khong rong thi Buoc 1 luon re sang Re-run mode
+# nen khong co duong chay nao danh so lai tu 1. Truoc day cho nay ghi nguoc lai ("moi feature danh so lai
+# tu dau"); do la mot gia dinh chua do, khong phai hanh vi quan sat duoc.
+#
+# LUU Y glob: dung "$ARGUMENTS-*.md" chu KHONG phai "$ARGUMENTS*.md" — thieu dau gach thi SLICE-1 khop nham
+# SLICE-10..19 (do that: 11 file).
+#
+# Stage scope-theo-item dung engine FANOUT (Tier 2 §4.3): node resolve-* liet ke item ra
+# file marker trong thu muc work CO DINH -> moi item = 1 subagent claude -p FRESH-CONTEXT (khong phinh context window).
+#   - resolve-slice-units  -> marker NN_<unit-id> (NN = dependency order) cho node PER-UNIT (dd, ui-schema, story-bridge,
+#     atdd-tests, ds-build, dev); fanout strip `^[0-9]+_`, sorted glob = thu tu foundation-first.
+#   - resolve-slice-modules -> marker <module-id> cho techspec PER-MODULE.
+# max_concurrency: 5 cho stage ghi artifact RIENG (techspec/dd/ui-schema/story-bridge/atdd-tests) = song song.
+# max_concurrency: 1 cho ds-build + dev (ghi SHARED master_token/code+git, can thu tu BE->FE) = tuan tu, van fresh-context/item.
+# Node singleton/decision/whole-slice (ux, ds-delta, atdd-classify, framework, slice-integration, code-review) giu prompt-node.
+# slice-integration (whole-slice, sau dev, truoc review): chu so huu DUY NHAT cua buoc "swap stub -> real impl" — wire-up
+#   cross-unit/cross-slice tu canh khai bao (4 nguon + guardrail: xem node).
+# Decision point (ds-delta, atdd-classify) = prompt node (Claude doc artifact + quyet dinh).
+# Hook (3/4/5/6/7/8/9/10) fire qua Claude Code event + pre-commit, doc lap engine — giu comment tham chieu.
+
+name: slice-loop
+description: "Build 1 SLICE-N end-to-end -> demo. --args <slice_id>"
+# model = DEFAULT model cho AI node. Engine emit hint qua needs_ai.nodes[].model
+# (dag-parser: node.model ?? defaultModel); glue /NTAPP-vsaf-run dispatch moi node
+# thanh 1 subagent kem --model = hint nay. Default opus (work nang: design/code/review/
+# suy luan cross-boundary). Node "re" (preprocessing/decision/summary) override `model: sonnet`.
+model: opus
+# args = plain string: <slice_id> (vi du "SLICE-01") -> $ARGUMENTS.
+# KHONG khai `inputs:`: engine ep args thanh JSON object khi co `inputs:`, nhung $ARGUMENTS chi tra raw string.
+nodes:
+  - id: resolve-slice-modules
+    description: "Tien xu ly FANOUT per-MODULE — liet ke tap MODULE distinct cua slice ra file marker cho techspec fanout"
+    model: sonnet   # co hoc: doc manifest -> map unit->module (WBS) -> touch marker
+    # Nhu resolve-slice-units nhung GRANULARITY module (techspec MODULE-scoped). Tao 1 marker rong / module distinct
+    # vao thu muc work CO DINH cho techspec fanout glob. Module doc lap -> KHONG can tien to thu tu nhu unit.
+    prompt: |
+      Slice = $ARGUMENTS. Liet ke tap MODULE distinct cua slice lam input cho techspec fanout:
+      1. Xoa sach: rm -rf NTAPP-output/.work/slice-modules && mkdir -p NTAPP-output/.work/slice-modules
+      2. Doc manifest NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md -> lay TAT CA units[].id.
+      3. Moi unit id -> tra NTAPP-output/Stage_2_Architecture/project_wbs.md tim module (node level-1 trong
+         Function Decomposition Tree chua unit do) -> gom thanh tap MODULE DISTINCT.
+      4. Moi module M -> tao file rong: touch "NTAPP-output/.work/slice-modules/M"
+         (ten file = module id filesystem-safe, KHONG duoi mo rong; vd MPF, HUB, BMS).
+      5. Bao cao tap module (so luong + ten). 1 module -> techspec fanout 1 item; >1 -> techspec chay SONG SONG moi module.
+    workspace: false
+
+  - id: techspec-per-module
+    description: "Stage 3a — tech spec FANOUT per-MODULE (moi module = 1 subagent /NTAPP-technical-design; >1 module -> song song)"
+    # hook (pre): Hook 3 stage3-input-gate — WBS lock + slice exists + HLD + Master DS.
+    # TechSpec MODULE-scoped: 1 slice cham subset unit nhung techspec cover NGUYEN module (§5/§6/§7/§11/§12 khong xe
+    # per-unit duoc). FANOUT an toan song song: moi module ghi {M}_techspec.md RIENG, doc lap (chi doc HLD/Module 0
+    # locked, KHONG tham chieu techspec module anh em).
+    fanout:
+      over: "NTAPP-output/.work/slice-modules/*"
+      as: MODULE
+      max_concurrency: 5
+    prompt: |
+      ITEM = ${ITEM}. MODULE = ten file cua ITEM (phan sau "/" cuoi cung), vd MPF. Chi xu ly DUNG module nay
+      (1 subagent = 1 module) — KHONG loop/xu ly module khac. TechSpec MODULE-scoped — cover nguyen module, KHONG per-unit.
+      1. Neu NTAPP-output/Stage_3_Specs/techspec/{MODULE}_techspec.md DA ton tai -> SKIP
+         (idempotent; module da spec o slice truoc — mot module trai nhieu slice chi spec 1 lan), bao cao.
+      2. Neu chua -> Invoke: Skill(skill="NTAPP-technical-design", args="module_name=MODULE") — bat buoc,
+         khong thay the bang cach tu viet techspec. Skill tu audit FULL module tu WBS, khong gioi han o unit
+         cua slice nay — day la khac biet chinh so voi viec tu soan theo pham vi slice dang thay.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-technical-design | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [resolve-slice-modules]
+    # ledger READER (node entry): engine inject bai hoc slice truoc vao dau prompt moi module-subagent. slice-demo = writer.
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    workspace: false
+
+  - id: ux-design-update
+    description: "Stage 3b — UX Spec singleton toan-feature, batch run-once (idempotent skip; KHONG per-slice)"
+    # hook (pre): Hook 3 stage3-input-gate (reuse).
+    # UX Spec SINGLETON feature-wide, batch run-once (SSoT = ntapp-ux-design §2.0). Skill danh gia tren UNION
+    # moi slice, SKIP cho reuse-journey/single-screen/BE-only. Node = idempotent guard; CAM xe theo screen cua
+    # rieng slice (vo trai nghiem holistic).
+    prompt: |
+      Slice = $ARGUMENTS. UX Journey Spec la SINGLETON toan-feature, batch run-once — KHONG per-slice.
+      (Tu v4.0 skill sinh 2 artifact: ux_design.md = journey spec slim per-feature; ux_conventions.md =
+      conventions PROJECT singleton, delta-update — per-screen spec KHONG con o Stage 3b, do feature-design 4a own.)
+      1. Neu NTAPP-output/Stage_3_Specs/ux/ux_design.md DA ton tai cho feature nay -> SKIP
+         (UX da batch-design 1 lan truoc vong loop; moi feature-design Stage 4a ke thua journey Key states
+         + ux_conventions.md tu day). Ket luan + tiep tuc.
+      2. Neu CHUA ton tai -> Invoke: Skill(skill="NTAPP-ux-design") — bat buoc, KHONG kem scope slice,
+         va khong thay the bang cach tu phac journey. Skill tu chay Applicability Gate §2.0
+         tren UNION SCR/WGT cua MOI slice thuoc feature (KHONG chi slice $ARGUMENTS):
+         - Thoa Lane 3 + multi-screen-new -> skill sinh ux_design.md (journey spec) + tao/delta-update
+           ux_conventions.md cho ca feature.
+         - Khong thoa (reuse-journey / single-screen / BE-only) -> skill tu SKIP, feature-design Stage 4a
+           ke thua tu Journey Spec da co / HLD §3.2 + ux_conventions.md (neu co).
+      3. TUYET DOI khong gioi han ux-design o screen cua rieng slice $ARGUMENTS — danh gia + thiet ke la toan-feature.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ux-design | yes|no|skipped | <ly do neu no/skipped>
+    # KHONG depends_on techspec: ux-design (Stage 3b) doc PRD/Epics/HLD/Module 0/Master DS, techspec (Stage 3a)
+    # doc HLD/Module 0/WBS — doc lap du lieu, chay song song duoc. Barrier dat o dd-per-unit (depends_on ca hai).
+    workspace: false
+
+  - id: resolve-slice-units
+    description: "Tien xu ly FANOUT — liet ke unit cua slice ra file marker de cac stage per-unit fanout song song"
+    model: sonnet   # co hoc: doc manifest, sort theo dependency (lay tu manifest), touch marker NN_
+    # Engine fanout.over = glob (KHONG interpolate $ARGUMENTS) -> can thu muc work CO DINH, clean moi run. Tao 1 marker
+    # rong / unit ten NN_<id> (NN = thu tu dependency 2 chu so); sorted glob -> ds-build/dev (mc:1) chay dung thu tu
+    # foundation-first, node mc:5 bo qua thu tu. Node fanout strip `^[0-9]+_`. Path CO DINH => chay 1 slice / lan / repo.
+    prompt: |
+      Slice = $ARGUMENTS. Chuan bi danh sach unit (CO THU TU dependency) lam input cho cac stage per-unit fanout:
+      1. Xoa sach: rm -rf NTAPP-output/.work/slice-units && mkdir -p NTAPP-output/.work/slice-units
+      2. Doc manifest NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md -> lay TAT CA units[].id THEO THU TU
+         dependency (foundation/BE truoc, FE phu thuoc sau — theo thu tu liet ke trong manifest / chi dinh blocked_by).
+      3. Moi unit id U o vi tri thu i (bat dau 1) -> tao file rong ten co tien to thu tu 2 chu so:
+         printf -v n '%02d' i; touch "NTAPP-output/.work/slice-units/${n}_${U}"
+         (vd unit dau "01_PBK-01", unit thu 3 "03_SCR-LOGIN"; KHONG duoi mo rong). Tien to NN_ chi de sort,
+         KHONG phai phan cua unit id — cac node fanout se strip `^[0-9]+_` de lay lai id that.
+      4. Bao cao danh sach unit da ghi theo thu tu (so luong + ten file NN_<id>). Day la nguon item cho fanout.
+    workspace: false
+
+  - id: dd-per-unit
+    description: "Stage 4a — Detailed Design FANOUT per-unit (moi unit = 1 subagent /NTAPP-feature-design song song)"
+    # hook (post): Hook 4 stage4a-completeness — DD co §1, §2.2, §3.2, §5.2.
+    # FANOUT mc:5 song song an toan: moi unit ghi DD RIENG {U}_detailed_design.md. Danh doi: mat thu tu
+    # foundation-first (DD per-unit doc lap module techspec, khong tham chieu DD unit anh em).
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 5
+    prompt: |
+      ITEM = ${ITEM} (duong dan file marker). UNIT_ID = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to
+      thu tu `^[0-9]+_` (vd "03_PBK-01" -> "PBK-01"). Chi xu ly DUNG unit nay (1 subagent = 1 unit) — KHONG loop/xu ly unit khac.
+      Context "Cross-iteration ledger" dau prompt = bai hoc slice truoc (pattern tai dung / drift) — can nhac khi thiet ke DD.
+      1. Neu DD da ton tai (NTAPP-output/Stage_4_Design/detailed_design/{UNIT_ID}_detailed_design.md):
+         a. Mac dinh (unit KHONG growable) -> SKIP (idempotent), bao cao.
+         b. NGOAI LE growable-append: neu unit CO co growable (manifest units[] cua {UNIT_ID} co growable: true, HOAC
+            hang {UNIT_ID} trong project_wbs.md co tag growable) VA slice $ARGUMENTS gioi thieu 1 consumer MOI can 1 endpoint
+            CHUA co trong DD hien tai -> KHONG skip, KHONG hand-edit DD truc tiep.
+            Invoke: Skill(skill="NTAPP-feature-design", args="--append unit_id=UNIT_ID") — bat buoc, day chinh la
+            cho de sa nhat vao viec tu sua DD bang tay.
+              Truyen kem mo ta endpoint/capability moi + canh consumes cua consumer moi. Skill APPEND mode se:
+              dong bang phan cu verbatim, thiet ke delta qua specialist F1-F4 (cung rigor build moi), chay NO-REGRESSION
+              check, bump dd_version, dual-write archive; TU escalate FULL neu delta cham endpoint/contract cu (khong thuan-them).
+            Bang chung "consumer moi can endpoint" = canh consumes cua consumer trong slice nay (WBS consumes/used_by cua
+            {UNIT_ID}), KHONG tu doan tu code.
+         # Khuyen nghi: uu tien TACH atom per-capability (A-U5) hon la danh dau growable — tach lam idempotent-skip dung
+         # ban chat tro lai, khong can co che "mo lai" de sai. growable chi danh cho hub co-y lon dan qua nhieu slice.
+      2. Neu chua co DD -> Invoke: Skill(skill="NTAPP-feature-design", args="unit_id=UNIT_ID") che do FULL — bat buoc,
+         khong thay the bang cach tu soan DD. Skill chay pipeline 5 sub-agent F0-F4 cho rieng unit nay.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-feature-design | yes|no|skipped | <ly do neu no/skipped>
+    # ledger READER: dd-per-unit luon chay cho unit moi (khac techspec co the idempotent-skip) -> noi bai hoc
+    # cross-slice that su anh huong thiet ke. Engine inject vao TUNG fanout item.
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    depends_on: [techspec-per-module, ux-design-update, resolve-slice-units]
+    workspace: false
+
+  - id: ui-schema-per-fe-unit
+    description: "Stage 4b — sinh ui_schema_{id}.json FANOUT per-FE-unit (moi FE unit = 1 subagent /NTAPP-ui-generation song song)"
+    # FANOUT (Tier 2): moi unit = 1 subagent fresh-context, song song. NTAPP-ui-generation PER-FE-UNIT (BE feature_id skill tu skip).
+    # An toan song song: moi unit ghi ui_schema_{U}.json + feature_deltas/{U}/ RIENG (khong shared-file).
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 5
+    prompt: |
+      ITEM = ${ITEM}. UNIT_ID = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_` (vd "03_SCR-LOGIN"
+      -> "SCR-LOGIN"). Chi xu ly DUNG unit nay (1 subagent = 1 unit).
+      1. Neu UNIT_ID KHONG phai FE (prefix khac SCR-*/WGT-*) -> bo qua (BE khong co ui_schema), bao cao skip.
+      2. Neu ui_schema da ton tai (NTAPP-output/Stage_4_Design/ui_schema/ui_schema_{UNIT_ID}.json) -> SKIP (idempotent).
+      3. Nguoc lai -> Invoke: Skill(skill="NTAPP-ui-generation", args="id=UNIT_ID") — bat buoc, khong tu viet
+         ui_schema JSON bang tay (schema + icon_bindings do skill sinh moi khop Hook va pre-commit Rule 6/9).
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ui-generation | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [dd-per-unit, resolve-slice-units]
+    workspace: false
+
+  - id: ds-delta-decision
+    description: "Decision point — doc proposed_ds_updates.md: [NEW] rong -> skip ds-build; co entry -> notify DSO + cho approve"
+    model: sonnet   # route theo luat don gian: [NEW] rong hay khong
+    # hook: Hook 5 ds-delta-router = RECORDER (ghi ds_delta_decision.md status pending|auto_approved,
+    #       warn_pass, KHONG block-on-Stop). Cong thuc su = Hook 5b ds-build-approval-gate o
+    #       UserPromptSubmit cua /NTAPP-ds-build-component: chan neu status con `pending`.
+    prompt: |
+      Doc moi proposed_ds_updates.md cua slice $ARGUMENTS trong design-system/feature_deltas/*/
+      (multi-DS: quet ca design-system/*/feature_deltas/*/ — moi DS root theo registry.yaml;
+      xem NTAPP-output/design-system/_shared/ds-resolution.md).
+      Neu muc [NEW] rong tat ca -> ket luan "skip ds-build" va tiep tuc.
+      Neu co entry [NEW] -> Hook 5 da ghi ds_delta_decision.md:
+        - auto-approve OFF (default): status=pending -> goi DSO review/approve (doi `status: approved`)
+          truoc khi build; neu khong, Hook 5b se chan ds-build.
+        - auto-approve ON (ds_delta_auto_approve): status=auto_approved -> di tiep, audit trail van ghi.
+    depends_on: [ui-schema-per-fe-unit]
+    workspace: false
+
+  - id: ds-build-per-fe-unit
+    description: "Stage 4b — build component cho moi FE unit co delta [NEW] (FANOUT mc:1 TUAN TU; subagent skip neu khong [NEW])"
+    model: sonnet   # apply delta DA approve (design da chot o ui-schema): scaffold/patch/export token — deterministic. Nang opus neu adapter phuc tap.
+    # hook (post): Hook 6 build-component-verify — build_report.md + master_token.json schema + runtime token path.
+    # NTAPP-ds-build-component PER-FE-UNIT (apply delta 1 SCR/WGT) — KHONG tu loop. FANOUT mc:1 TUAN TU vi moi unit
+    # cap nhat master_token.json CANONICAL cua DS no thuoc ve (shared TRONG 1 DS) -> tranh xung dot ghi.
+    # Multi-DS: 2 unit khac DS thuc ra doc lap (lock per-DS) — van giu mc:1 cho an toan/don gian; noi sau neu can.
+    # BE / FE khong [NEW] -> subagent tu skip.
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 1
+    prompt: |
+      Slice = $ARGUMENTS. ITEM = ${ITEM}. UNIT_ID = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_`
+      (vd "03_SCR-LOGIN" -> "SCR-LOGIN"). Chi xu ly DUNG unit nay. NTAPP-ds-build-component la PER-FE-UNIT (apply delta 1 SCR/WGT).
+      1. Neu UNIT_ID KHONG phai FE (prefix khac SCR-*/WGT-*) -> skip (BE khong co DS delta), bao cao.
+      2. Doc proposed_ds_updates.md cua UNIT_ID: design-system/feature_deltas/{UNIT_ID}/ hoac (multi-DS)
+         design-system/*/feature_deltas/{UNIT_ID}/ — ID global-unique nen toi da 1 hit. Muc [NEW] rong -> skip, bao cao.
+      3. Co [NEW]: kiem ds_delta_decision.md cua UNIT_ID da approved/auto_approved chua (neu con pending, Hook 5b se chan
+         -> doi DSO approve); roi Invoke: Skill(skill="NTAPP-ds-build-component", args="id=UNIT_ID") — bat buoc,
+         khong tu scaffold component hay sua master_token.json bang tay.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ds-build-component | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [ds-delta-decision, resolve-slice-units]
+    workspace: false
+
+  - id: story-bridge-per-unit
+    description: "Stage 4c — tao story FANOUT per-unit (moi unit = 1 subagent /bmad-create-story song song)"
+    model: sonnet   # synthesis co template + guardrail path/naming chat. Nang opus neu unit cross-cutting nhieu context.
+    # hook (post): Hook 7 story-bridge-gate — story co AC + Tasks + Dev Notes + Testing + slice_id match.
+    # FANOUT (Tier 2): moi unit = 1 subagent fresh-context, song song. An toan: moi unit ghi {story_key}.md RIENG.
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 5
+    prompt: |
+      Slice = $ARGUMENTS. ITEM = ${ITEM}. UNIT_ID = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_`
+      (vd "03_INT-BMS-01" -> "INT-BMS-01"). Chi xu ly DUNG unit nay.
+      Neu story da co (NTAPP-output/Stage_5_Build_Verify/{UNIT_ID}.md) -> SKIP idempotent, bao cao.
+      Nguoc lai -> Invoke: Skill(skill="bmad-create-story", args="unit=UNIT_ID") — bat buoc, khong thay the bang cach
+      tu viet story. OUTPUT PATH ghim cung — story PHAI ghi PHANG tai {implementation_artifacts}
+      root (resolve = NTAPP-output/Stage_5_Build_Verify/), ten file = {{story_key}}.md (= UNIT_ID, vd INT-BMS-01.md).
+      CAM tuyet doi convention BMAD goc:
+        - KHONG tao subfolder `stories/` (hay subfolder nao khac) — ghi thang vao root.
+        - KHONG them tien to `story-` vao ten file.
+        - KHONG doi {{story_key}} thanh danh so epic.story (vd 2.1-...).
+      Ly do: Hook 7 story-bridge-gate chi quet `find -maxdepth 1` tai root; bmad-dev-story tim story o
+      {implementation_artifacts} root voi pattern {{story_key}}.md — dat sai cho => thoat gate + dev khong tim thay.
+      Neu story lo ghi vao stories/ hoac co tien to story- => move/rename ve {implementation_artifacts}/{UNIT_ID}.md.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-create-story | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [dd-per-unit, ui-schema-per-fe-unit, ds-build-per-fe-unit, resolve-slice-units]
+    workspace: false
+
+  - id: atdd-classify-per-story
+    description: "Decision point — 5 trigger A/B ATDD (canonical: Manual §5.1; match>=1 -> Mandatory; soft-signal -> QA fallback advisory)"
+    model: sonnet   # classification theo 5 trigger cu the
+    # hook: Hook 8 atdd-classifier (reuse) — decision point thu 2.
+    prompt: |
+      Voi moi story cua slice $ARGUMENTS, doi chieu 5 trigger Mandatory ATDD (canonical Manual_phase_1.md §5.1):
+      A1 cross-system | A2 multi-actor/stateful | A3 async/resilience | B1 critical-domain | B2 destructive.
+      match >=1 -> danh dau mandatory_atdd. Khong khop nhung co soft-signal -> QA Lead ap Fallback (ghi atdd: front-matter). Con lai -> Optional.
+    depends_on: [story-bridge-per-unit]
+    workspace: false
+
+  - id: framework-setup-per-module
+    description: "Stage 4d pre — dam bao test framework ton tai per-MODULE (resolve slice->modules, skip neu config da co)"
+    model: sonnet   # detect config theo stack -> scaffold qua skill (deterministic)
+    # Test framework per-MODULE/per-REPO, setup 1 lan. Ly do node ton tai: bmad-testarch-atdd preflight HALT neu
+    # thieu config; headless "HALT" = in stderr roi exit 0 -> engine mark success -> ATDD bi BO QUA IM LANG.
+    # Node = idempotent guard: co framework -> skip; thieu -> /bmad-testarch-framework scaffold truoc atdd.
+    prompt: |
+      Slice = $ARGUMENTS. Test framework la per-MODULE/per-REPO, setup 1 lan — KHONG per-slice.
+      1. Doc ket qua atdd-classify: neu KHONG story nao mandatory_atdd VA khong story optional-ATDD nao duoc yeu cau
+         -> khong can framework cho slice nay -> ket luan "skip framework" va tiep tuc.
+      2. Resolve slice->modules: doc manifest NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md -> units[].id,
+         tra NTAPP-output/Stage_2_Architecture/project_wbs.md -> tap MODULE distinct (+ stack moi module: frontend/backend/fullstack).
+      3. Moi module M trong tap:
+         - Detect framework config theo stack:
+             FE/fullstack -> playwright.config.ts | cypress.config.ts
+             BE           -> conftest.py | src/test/ | go.mod voi *_test.go | .rspec
+         - Neu DA ton tai -> SKIP (idempotent; module da setup o slice/repo truoc — mot module trai nhieu slice setup 1 lan).
+         - Neu CHUA -> Invoke: Skill(skill="bmad-testarch-framework") — bat buoc, khong tu scaffold config bang tay.
+           Skill tu detect stack + scaffold Playwright/Cypress/pytest/... dung layout ma bmad-testarch-atdd mong doi.
+      4. Bao cao: module nao vua setup framework moi / module nao skip vi da co / co skip toan bo vi khong co ATDD.
+      Node nay goi skill N lan (moi module thieu config 1 lan) — TUYET DOI khong gop nhieu module vao 1 lan goi.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-testarch-framework | yes|no|skipped | <so lan goi / ly do neu no|skipped>
+    depends_on: [atdd-classify-per-story]
+    workspace: false
+
+  - id: atdd-tests-per-story
+    description: "Stage 4d — viet ATDD tests FANOUT per-story mandatory (moi story = 1 subagent /bmad-testarch-atdd song song)"
+    # hook: Hook 9 build-loop (reuse, test files) — header id + dd_version + reference DD.
+    # depends_on framework-setup: dam bao framework config ton tai -> atdd preflight khong HALT-im-lang trong headless.
+    # FANOUT (Tier 2): moi unit/story = 1 subagent fresh-context, song song. bmad-testarch-atdd PER-STORY.
+    # An toan song song: moi story ghi test file RIENG. Subagent tu skip neu story khong mandatory_atdd.
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 5
+    prompt: |
+      ITEM = ${ITEM}. STORY_KEY = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_` (= unit id,
+      vd "03_INT-BMS-01" -> "INT-BMS-01"). Chi xu ly DUNG story nay.
+      1. Doc NTAPP-output/Stage_5_Build_Verify/{STORY_KEY}.md front-matter: neu KHONG mandatory_atdd -> SKIP, bao cao.
+      2. Neu mandatory_atdd va ATDD tests cua story da ton tai -> SKIP (idempotent).
+      3. Nguoc lai -> Invoke: Skill(skill="bmad-testarch-atdd", args="story=STORY_KEY") — bat buoc, khong thay the
+         bang cach tu viet test. Skill biet layout fixture/POM cua framework da scaffold; test tu viet se lech layout do.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-testarch-atdd | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [atdd-classify-per-story, framework-setup-per-module, resolve-slice-units]
+    workspace: false
+
+  - id: dev-per-story
+    description: "Stage 4 — viet code chinh (FANOUT mc:1 TUAN TU qua moi story; 1 subagent /bmad-dev-story / story)"
+    # hook: Hook 9 build-loop (reuse, intensive) — realtime per-edit (PostToolUse) + pre-commit.
+    # bmad-dev-story PER-STORY (impl 1 story / lan) — KHONG tu loop. FANOUT mc:1 TUAN TU: nhieu story ghi code/commit
+    # chung repo KHONG xung dot git/file. mc:1 + marker NN_ sort -> dev dung thu tu BE->FE.
+    fanout:
+      over: "NTAPP-output/.work/slice-units/*"
+      as: UNIT
+      max_concurrency: 1
+    prompt: |
+      Slice = $ARGUMENTS. ITEM = ${ITEM}. STORY_KEY = ten file cua ITEM (phan sau "/" cuoi) SAU KHI bo tien to `^[0-9]+_`
+      (= unit id, vd "03_INT-BMS-01" -> "INT-BMS-01"). Chi xu ly DUNG story nay. bmad-dev-story la PER-STORY (1 story / lan).
+      Context "Cross-iteration ledger" dau prompt = bai hoc slice truoc (pattern tai dung / drift) — ap dung khi viet code.
+      1. Neu story NTAPP-output/Stage_5_Build_Verify/{STORY_KEY}.md da Done (status/checklist hoan tat):
+         a. Mac dinh (unit KHONG growable) -> SKIP (idempotent), bao cao.
+         b. NGOAI LE growable-append: neu unit CO co growable (manifest units[] cua {STORY_KEY} co growable: true, HOAC
+            hang {STORY_KEY} trong project_wbs.md co tag growable) VA DD cua unit vua duoc THEM endpoint moi o buoc dd-per-unit
+            (co endpoint trong DD ma impl hien tai chua phuc vu) -> KHONG skip. Mo lai va THEM impl cho endpoint moi:
+              - Append-only: GIU NGUYEN impl cu (khong sua/xoa endpoint cu), chi them handler/route cho endpoint moi.
+              - Cap nhat header dd_version cua file code cho khop DD moi.
+            Bang chung = endpoint moi trong DD {STORY_KEY}_detailed_design.md (khong tu doan tu code).
+         # Khuyen nghi giong dd-per-unit: uu tien TACH atom per-capability (A-U5) hon growable.
+      2. Neu chua -> Invoke: Skill(skill="bmad-dev-story", args="story=STORY_KEY") — bat buoc, khong thay the bang cach
+         tu viet code theo DD. Do duoc 24% tuan thu o node nay: viet code la viec agent lam duoc ngay nen rat de bo qua skill,
+         nhung bo qua thi mat luon phan skill rang buoc (doc dung story + DD, cap nhat checklist, dat header id/dd_version).
+         Skill trung lap ngon ngu — BE Java dung binh thuong, khong phai ly do de tu lam.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-dev-story | yes|no|skipped | <ly do neu no/skipped>
+    # ledger READER: dev-per-story luon chay cho story moi -> bai hoc cross-slice anh huong code manh nhat.
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    depends_on: [atdd-tests-per-story, resolve-slice-units]
+    workspace: false
+
+  - id: slice-integration
+    description: "Stage 5 pre — WIRE-UP cross-unit (whole-slice): suy nghia vu noi tu CANH KHAI BAO, patch seam, diet orphan/stub-on-live-path"
+    # WHY node ton tai: dev-per-story la FANOUT fresh-context/unit -> moi subagent chi thay story cua no, KHONG thay
+    # seam unit anh em (DD per-unit cung khong tham chieu DD anh em). Hai impl cua 1 contract (stub-first roi real-swap)
+    # -> buoc SWAP thuoc-khong-unit-nao -> stub con tren live path + real impl orphaned. Node nay la CHU SO HUU DUY NHAT
+    # cua buoc wire-up. WHOLE-SLICE (NON-fanout) la granularity dung: wiring vuot bien unit (va vuot bien slice o hub).
+    # Barrier: depends_on dev-per-story (fanout mc:1) -> chi chay khi MOI unit slice da dev xong.
+    #
+    # NGUYEN LY (chong ao giac + tiet kiem token): wiring = TAP DONG nghia vu noi suy tu CANH DA KHAI BAO, KHONG audit code mo.
+    # Moi obligation truy nguoc 1 evidence; khong canh -> khong claim. Chi tiet 5 case W1-W5 + 4 nguon canh: xem B1.
+    prompt: |
+      Slice = $ARGUMENTS. WIRE-UP toan slice (whole-slice, KHONG per-unit). Context "Cross-iteration ledger" = bai hoc slice truoc.
+
+      ===== B1. DUNG TAP NGHIA VU NOI (closed set tu CANH KHAI BAO; moi obligation PHAI co EVIDENCE) =====
+      Doc front-matter manifest NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md (units[]/type, blocked_by, enhanced_by, seam_rationale).
+      Suy 4 nhom obligation (kem evidence):
+        - INTRA-slice (W1 swap / W5-noi-slice): contract chung GIUA cac unit CUA $ARGUMENTS.
+          Evidence = WBS consumes/used_by giua cac unit-id cua slice (grep project_wbs.md theo DUNG cac id, KHONG doc full WBS).
+        - INTER-OUT (W3 cross-slice call): $ARGUMENTS.blocked_by + WBS consumes -> unit thuoc slice TRUOC. Evidence = blocked_by edge.
+        - INTER-IN (W2 hub fan-in): grep "enhanced_by" tat ca slices/*.md tim entry CHUA $ARGUMENTS -> phai noi them path vao hub slice do.
+          Evidence = enhanced_by edge. LUU Y: $ARGUMENTS.blocked_by THUONG bo sot edge nay -> phai grep enhanced_by, dung chi dua blocked_by.
+        - EXCLUDE (W4 external/[TBD]): unit type:integration ghi external / shape [TBD] (slice HITL) -> stub/adapter CO Y, KHONG tinh orphan.
+
+      ===== B2. TRACE LIVE PATH (chong false-positive) =====
+      Trace tinh BOUNDED (mac dinh): tu entrypoint/composition-root, lan chuoi import + call toi diem bind contract.
+        - Grep symbol REAL provider vs symbol STUB trong seam file + entrypoint -> xac dinh live path dang construct/inject CAI NAO.
+        - Pham vi = seam file duoc chi ten (B1) + entrypoint, KHONG quet repo. Khong tu suy duong goi ngoai cac file nay.
+        - (TUY CHON, chi khi MCP gitnexus DA bat) route_map/impact/cypher thay grep. Mac dinh coi nhu CHUA co -> KHONG goi neu khong chac ton tai.
+      Voi moi obligation:
+        - STUB-ON-LIVE-PATH chi la BUG khi REAL PROVIDER DA TON TAI = o slice $ARGUMENTS, hoac o 1 blocked_by slice da demo_status:passed.
+          Neu real impl du kien o slice TUONG LAI (chua build) -> stub la CO Y -> KHONG flag.
+        - ORPHANED MODULE = unit da build/test nhung 0 inbound call live VA co consumer DA KHAI BAO o tren.
+
+      ===== B3. PATCH SEAM (giu signature) =====
+      Sua composition-root / DI / resolver / factory de live path tro REAL impl; go|guard stub; GIU NGUYEN signature contract
+      (consumer khong phai doi). Chi cham file seam duoc rationale/DD chi ten, KHONG rewrite unit.
+      RULE CHONG AO GIAC: unit co ve orphan nhung KHONG consumer nao duoc khai bao o B1 -> ESCALATE human (PLAN gap),
+      KHONG tu noi (noi 1 lien ket khong khai bao = ao giac). Ghi ro vao report de SA/Senior Dev quyet.
+
+      ===== B3.5. KIEM ENDPOINT (nang do phan giai atom -> endpoint) =====
+      Muc tieu: moi obligation consumer->provider o B1 phai phan giai toi ENDPOINT that ("dung method+path nay duoc phuc vu"),
+      KHONG chi "provider ton tai". GIU NGUYEN nguyen tac chong-ao-giac: van CHI xet tap obligation DONG o B1 (canh khai bao),
+      KHONG quet code de bia them lien ket — buoc nay chi NANG do phan giai tu atom sang (method, path), khong noi cung.
+      1. Clear marker cu (idempotent cho re-run): mkdir -p "$(dirname "NTAPP-output/.work/slice-blocked/$ARGUMENTS")" && rm -f "NTAPP-output/.work/slice-blocked/$ARGUMENTS".
+      2. Voi moi obligation consumer->provider (tu B1): trich tap (method, path) ma consumer THUC goi, doi chieu bang route THAT
+         cua provider (route table / OpenAPI da lock). Dung scripts/reachability_check.py lam ENGINE trich/khop — CUNG mot engine
+         ma cong feature-integration-smoke o staging-deploy dung (mot ban cai dat, khong nhan ban logic):
+           - Neu project co block reachability trong .bmm-config.yaml:
+               python3 scripts/reachability_check.py --config .bmm-config.yaml
+             roi LOC tap (method, path) unresolved ve DUNG cac obligation cua slice $ARGUMENTS (giao voi B1) — chi hanh dong tren chung.
+           - Hoac ad-hoc, nham dung provider cu the cua obligation:
+               python3 scripts/reachability_check.py --consumer-dir <dir> --consumer-adapter <a> --provider-dir <dir> --provider-adapter <b>
+           - Neu project CHUA khai reachability adapter/dir -> doi chieu tay: (method, path) consumer goi vs route table provider.
+      3. Voi moi (method, path) KHONG khop, phan loai theo trang thai provider:
+           - Provider DA "Done" (build o slice $ARGUMENTS, HOAC o 1 slice to-tien reachable qua blocked_by da co demo_status: passed)
+             -> day la BUG (endpoint le contract, provider dang chay nhung khong phuc vu path/verb consumer goi) -> ESCALATE-BLOCKING:
+                 * Ghi marker chan: mkdir -p "$(dirname "NTAPP-output/.work/slice-blocked/$ARGUMENTS")" && touch "NTAPP-output/.work/slice-blocked/$ARGUMENTS".
+                 * Danh dau slice NON-SHIPPABLE trong report B5 (liet ke tung method+path+consumer-source + 404|405).
+                 * Node slice-shippable-gate se doc marker nay va CHAN flip demo_status (slice khong duoc demo pass khi con BUG).
+           - Provider o slice TUONG LAI (chua build) -> skip-future: ghi nhan thong tin trong report, KHONG chan (endpoint se co khi slice do build).
+
+      ===== B4. KIEM CHUNG NOI THAT SU CHAY (khong "sua xong la tin") =====
+      Muc tieu 1 cau: chung minh slice da noi thanh MOT KHOI chay duoc, khong phai vai manh roi rac moi manh tu nhin ok.
+      Di theo BAC THANG, dung bac CAO NHAT ma repo dap ung duoc, va GHI RO da kiem o bac nao:
+        1) Bo ATDD test ma node atdd-tests-per-story DA viet cho cac story cua slice nay (neu co story mandatory_atdd),
+           CHAY qua runner ma framework-setup-per-module da dung (npx playwright test / pytest / ...), LOC theo unit-id cua slice.
+           Day la test XUYEN SEAM: neu buoc swap chua xay ra (live path con goi stub) -> test FAIL. Pass = xong (bac chac nhat).
+           Luu y: slice khong co story mandatory_atdd nao -> rung nay RONG -> tut xuong rung 2.
+        2) Khong co test nhung co duong chay that (entrypoint/script demo) -> goi 1 lan duong demo cua slice,
+           QUAN SAT du lieu di qua BAN THAT (co ban ghi vao store that / co log|trace), KHONG phai qua stub.
+        3) Khong co ca hai -> toi thieu kiem TINH: xac nhan live path co goi ban that VA stub da het duoc goi tren duong do.
+           Ghi report "verify: static-only" cho trung thuc.
+      Du o bac nao: con orphan hoac stub-on-live-path (tru W4) -> GHI RO vi pham con lai vao report, KHONG che giau.
+
+      ===== B5. REPORT + COMMIT =====
+      Ghi NTAPP-output/Stage_5_Build_Verify/slice_integration/$ARGUMENTS.md (mkdir -p truoc). Moi obligation 1 dong:
+        consumer -> provider | contract | case(W1..W5) | EVIDENCE (front-matter line / WBS row) |
+        trang thai (wired | skip-W4 | skip-future | escalate-blocking) | endpoint (khop | unresolved 404 method+path | unresolved 405 method+path).
+      Neu co bat ky obligation ESCALATE-BLOCKING (B3.5) -> mo dau report bang muc "## SLICE NON-SHIPPABLE" liet ke day du
+      tung method+path+consumer-source cua endpoint le, de SA/Senior Dev fix seam hoac provider endpoint.
+      Commit wiring (file seam da co header tu unit chu -> pre-commit pass). Khong co obligation nao -> van ghi report "no cross-unit seam".
+    # ledger READER: wiring quyet dinh boi seam/contract da hoc o slice truoc -> inject bai hoc cross-slice.
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    depends_on: [dev-per-story, resolve-slice-units]
+    workspace: false
+
+  - id: code-review-per-story
+    description: "Stage 5 — code review TOAN slice 1 lan (adversarial tren toan changeset; KHONG per-unit — co y)"
+    # KHAC 4 node tren: bmad-code-review la WHOLE-DIFF skill (review 1 changeset qua git diff), KHONG per-unit.
+    # Review toan slice 1 lan = dung granularity (adversarial review can thay toan bo thay doi); per-unit se la regression.
+    # Bare command + slice_id -> cascade gather-context roi vao nhanh "branch diff / uncommitted". Pin scope cho ro,
+    # va chan nhanh hoi HITL (skill co checkpoint "wait for human" — headless se treo/exit neu roi vao do).
+    prompt: |
+      Slice = $ARGUMENTS.
+      Invoke: Skill(skill="bmad-code-review", args="scope=branch-diff-vs-main") — bat buoc, khong thay the bang cach
+      tu doc diff roi nhan xet. Do duoc 24% tuan thu o node nay. Gia tri cua skill nam o 3 lop review doi khang chay
+      song song (Blind Hunter / Edge Case Hunter / Acceptance Auditor) + triage co cau truc; doc diff mot luot roi
+      liet ke nhan xet KHONG phai la thu tuc do va se bo sot dung nhung loi lop doi khang sinh ra de bat.
+      GOI MOT LAN cho TOAN BO changeset cua slice (KHONG per-unit).
+      Pin review scope = branch diff vs main (toan bo code moi unit cua slice da dev/commit). Khong hoi HITL,
+      review tu dong roi xuat findings. Muc tieu: 1 pass adversarial nhin thay toan bo thay doi cua slice.
+
+      GHI BAO CAO REVIEW theo template CHOT — bat buoc, KHONG tu che hinh dang:
+        template: review_report_template.md — file nam trong thu muc templates/ cua chinh skill bmad-code-review
+                  (skill da load thi doc duoc; TUYET DOI khong doan hinh dang report tu dau)
+        file    : NTAPP-output/Stage_5_Build_Verify/reviews/<slice-id>_review.md   (vd SLICE-9_review.md)
+      Moi finding = 1 heading H3 + DUNG MOT dong marker "okf-finding:" ngay duoi heading do
+      (dang: id {B|H|M|L}{so} · severity · status · location). Bang tom tat KHONG mang marker:
+      no la chi muc, khong phai noi dung — dat marker o ca hai noi se dem 1 finding thanh 2.
+
+      Sau khi review xong, NGAY luc context con tuoi (vua doc toan bo changeset + findings) -> ghi KNOWLEDGE
+      day du per-slice (ho so day du cua slice — de danh aggregate/audit sau). Ghi DE
+      (overwrite, idempotent — re-run slice ghi de chinh file cua no, khong dup) file
+      NTAPP-output/ledgers/knowledge/$ARGUMENTS.md (mkdir -p truoc). Noi dung FULL, rut tu changeset +
+      findings + dev-notes/commit cua slice (KHONG cat ngan):
+        - tieu de "## $ARGUMENTS — <ten slice>"   # $ARGUMENTS da mang "<feature>/SLICE-N" tu feature thu hai tro di
+        - **Pattern**: pattern/seam/contract thuc su xuat hien trong code slice nay
+        - **Decision**: quyet dinh thiet ke quan sat duoc trong diff + ly do
+        - **Gotcha**: van de review phat hien / su co dev gap + cach giai (lay tu findings + dev-notes story + commit)
+        - **Notes for retro**: gach dau y cho retro
+      Khong co bai hoc dang ghi -> van ghi file voi cac muc "—" (danh dau slice da close, tranh lo hong audit).
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-code-review | yes|no | <ly do neu no>
+    # diem CAPTURE knowledge: NON-fanout, vua review toan slice -> context tuoi nhat, ghi 1 file khong race.
+    # Ghi O DAY chu khong o slice-demo (fresh session se mat context -> Gotcha bay mat). File = plain Write
+    # (KHONG qua engine key), de o ledgers/knowledge/ cho buoc aggregate sau glob.
+    # depends_on slice-integration (KHONG dev-per-story truc tiep): review doc KET QUA DA WIRE -> bat duoc ca seam patch.
+    depends_on: [slice-integration]
+    workspace: false
+
+  - id: slice-shippable-gate
+    description: "Stage 5 gate — chan flip demo_status neu slice-integration da ESCALATE-BLOCKING (marker .work/slice-blocked/*)"
+    # Cong deterministic (mirror stage2b-approval): slice-integration B3.5 ghi marker khi 1 endpoint consumer goi KHONG
+    # phan giai toi provider DA "Done" (BUG le contract). Marker con -> slice NON-SHIPPABLE -> exit 1 chan truoc slice-demo
+    # (demo_status khong duoc flip passed khi slice con BUG). Provider o slice tuong lai = skip-future, KHONG ghi marker.
+    #
+    # DOC KY TRUOC KHI SUA — 2 bat bien cua cong nay:
+    # (1) Gan `slice=$ARGUMENTS` TRUOC roi moi ghep chuoi. Engine shell-escape $ARGUMENTS trong `bash:` node
+    #     (macOS/Linux boc dau ', Windows boc dau ")
+    #     nhung KHONG escape trong `prompt:` node. Ghep thang "$ARGUMENTS" vao duong dan o day se tim file
+    #     "slice-blocked/'SLICE-2'" trong khi slice-integration (prompt node) tao "slice-blocked/SLICE-2"
+    #     -> cong LUON bao shippable du slice dang hong, va khong phat ra tin hieu nao. Mau dung: staging-deploy/
+    #     feature-integration-gate. Fixture chung minh: tests/args-quoting-fixture.yaml.
+    # (2) FAIL-CLOSED khi thieu report. "Khong co marker" chi co nghia "da kiem va sach" NEU buoc kiem da chay xong.
+    #     slice-integration B5 luon ghi report (ke ca khi khong co seam nao). Thieu report = chua tung kiem
+    #     -> cho qua la mo cong bang su im lang.
+    bash: |
+      slice=$ARGUMENTS
+      marker="NTAPP-output/.work/slice-blocked/$slice"
+      report="NTAPP-output/Stage_5_Build_Verify/slice_integration/$slice.md"
+      if [ ! -f "$report" ]; then
+        echo "CHAN: khong thay report tich hop $report."
+        echo "Node slice-integration chua chay xong -> chua co bang chung da kiem endpoint -> khong duoc flip demo_status."
+        echo "Chay lai slice-integration roi vao lai cong nay: vsaf run NTAPP/slice-loop --resume <runId>"
+        exit 1
+      fi
+      if [ -f "$marker" ]; then
+        echo "SLICE $slice NON-SHIPPABLE — endpoint consumer goi khong phan giai toi provider DA 'Done' (BUG le contract)."
+        echo "Xem $report muc 'SLICE NON-SHIPPABLE'."
+        echo "Fix seam / provider endpoint, xoa marker ($marker) roi: vsaf run NTAPP/slice-loop --resume <runId>"
+        exit 1
+      fi
+      echo "Slice $slice shippable — co report tich hop, khong co marker chan; cho demo."
+    depends_on: [slice-integration]
+    workspace: false
+
+  - id: slice-demo
+    description: "HITL — slice demo voi SeniorDev/PM/PO; tick demo_status: passed de unblock slice ke"
+    model: sonnet   # tom tat demo + flip demo_status + ghi ledger gon
+    prompt: |
+      Context "Cross-iteration ledger" dau prompt = bai hoc slice truoc — dung khi tom tat demo + rut kinh nghiem.
+      Tom tat slice $ARGUMENTS cho SeniorDev/PM/PO demo: story da xong, screenshot/flow chinh.
+      Sau khi demo pass, cap nhat field demo_status: passed trong
+      NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md de slice ke check blocked_by.
+
+      Cuoi node ghi LEDGER forward-looking (ENGINE doc, BOUNDED) -> append vao NTAPP-output/ledgers/slice-ledger.md
+      (mkdir -p truoc; tao header neu chua co; KHONG sua/xoa entry cu). Doc truoc knowledge day du cua slice tai
+      NTAPP-output/ledgers/knowledge/$ARGUMENTS.md (code-review-per-story da ghi) + ket qua demo de chat loc.
+      GON 5-10 dong, CHI thu slice sau CAN BIET:
+        - dong tieu de "## $ARGUMENTS — <ten slice>" — <ten slice> lay tu `title:` trong front-matter
+          manifest NTAPP-output/Stage_2_Architecture/slices/$ARGUMENTS-*.md (DOC TRUONG, khong parse ten file),
+          giong het tieu de knowledge o node code-review-per-story. BAT BUOC co ten: ledger la thu NGUOI doc
+          de tra "SLICE-3 la cai gi", va mot dong chi co so tran thi phai mo manifest moi biet. So slice khong
+          bi dung lai (re-run chi noi them so), nen day la van de DOC DUOC, khong phai van de va cham.
+        - Pattern/contract/seam tai su dung duoc (vd "auth middleware MPF-02 dung lai cho moi BE unit").
+        - Drift / pitfall phai watch o slice sau (vd "contract X chua chot, dung depend cung").
+        - Quyet dinh anh huong slice sau + 1 dong ly do; demo pass/fail neu anh huong slice ke.
+      Engine inject file nay vao node entry (techspec/dd/dev) cua slice ke tiep (cap 16KB, giu duoi) -> GIU GON.
+    # diem CLOSURE (post-demo): ghi ledger forward-looking BOUNDED (engine `ledger:` key) -> inject cross-run cho
+    # readers techspec/dd/dev. Doc knowledge cua code-review + ket qua demo de chat loc. ledgers/ committed.
+    ledger: NTAPP-output/ledgers/slice-ledger.md
+    # depends_on slice-shippable-gate: neu ESCALATE-BLOCKING (B3.5) thi gate exit 1 -> node nay KHONG chay -> demo_status
+    # khong duoc flip passed khi slice con BUG le contract.
+    depends_on: [code-review-per-story, slice-shippable-gate]
+    workspace: false

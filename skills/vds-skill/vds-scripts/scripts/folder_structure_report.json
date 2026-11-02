@@ -1,0 +1,321 @@
+{
+  "total_projects": 6,
+  "analyzed_projects": 6,
+  "common_folders": [
+    "VDS-AI-Memory",
+    "ai-material-proposal",
+    "analysis",
+    "business",
+    "integrations",
+    "operations",
+    "overview",
+    "scripts",
+    "security"
+  ],
+  "common_files": [
+    ".DS_Store",
+    "ANALYSIS_FRAMEWORK.md",
+    "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+    "DOCUMENTATION_MAPPING.md",
+    "README.md",
+    "VDS_SECURITY_VULNERABILITY_ANALYSIS.md",
+    "payment-system-architecture-baseline.md"
+  ],
+  "project_structures": {
+    "INSURANCE": {
+      "folders": [
+        "analysis",
+        "business",
+        "integrations",
+        "operations",
+        "overview",
+        "scripts",
+        "security"
+      ],
+      "files": [
+        ".DS_Store",
+        "ANALYSIS_FRAMEWORK.md",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "README.md"
+      ],
+      "subfolders": {
+        "analysis": [
+          "_diagrams",
+          "c4-diagrams",
+          "confluence-pages",
+          "current-state",
+          "implementation",
+          "metadata",
+          "plans",
+          "reference",
+          "scripts",
+          "structurizr",
+          "target-state",
+          "target-state-backup-20251215-101800",
+          "temporal-migration"
+        ],
+        "security": [],
+        "business": [
+          "compliance",
+          "processes",
+          "products"
+        ],
+        "operations": [],
+        "integrations": [
+          "diagrams"
+        ],
+        "scripts": [
+          "documentation",
+          "generation",
+          "utilities",
+          "validation"
+        ],
+        "overview": []
+      }
+    },
+    "LEP": {
+      "folders": [
+        "analysis",
+        "business",
+        "integrations",
+        "operations",
+        "overview",
+        "security"
+      ],
+      "files": [
+        "README.md"
+      ],
+      "subfolders": {
+        "analysis": [
+          "camunda",
+          "current-state",
+          "lending-miniapp-fe"
+        ],
+        "security": [],
+        "business": [
+          "compliance",
+          "processes",
+          "products"
+        ],
+        "operations": [],
+        "integrations": [],
+        "overview": []
+      }
+    },
+    "EKYC": {
+      "folders": [
+        "analysis",
+        "business",
+        "integrations",
+        "operations",
+        "overview",
+        "security"
+      ],
+      "files": [
+        "README.md"
+      ],
+      "subfolders": {
+        "analysis": [],
+        "security": [],
+        "business": [
+          "compliance",
+          "processes",
+          "products"
+        ],
+        "operations": [],
+        "integrations": [],
+        "overview": []
+      }
+    },
+    "SAVING": {
+      "folders": [
+        "analysis"
+      ],
+      "files": [],
+      "subfolders": {
+        "analysis": [
+          "_diagrams",
+          "c4-diagrams",
+          "current-state",
+          "implementation",
+          "metadata",
+          "plans",
+          "scripts",
+          "target-state",
+          "technology"
+        ]
+      }
+    },
+    "PLATFORM": {
+      "folders": [
+        "VDS-AI-Memory",
+        "ai-material-proposal",
+        "analysis",
+        "business",
+        "integrations",
+        "operations",
+        "overview",
+        "security"
+      ],
+      "files": [
+        "README.md",
+        "payment-system-architecture-baseline.md"
+      ],
+      "subfolders": {
+        "analysis": [],
+        "security": [],
+        "ai-material-proposal": [],
+        "business": [],
+        "operations": [],
+        "integrations": [],
+        "overview": [],
+        "VDS-AI-Memory": []
+      }
+    },
+    "SECURITY": {
+      "folders": [
+        "analysis",
+        "business",
+        "integrations",
+        "operations",
+        "overview",
+        "security"
+      ],
+      "files": [
+        "README.md",
+        "VDS_SECURITY_VULNERABILITY_ANALYSIS.md"
+      ],
+      "subfolders": {
+        "analysis": [],
+        "security": [],
+        "business": [],
+        "operations": [],
+        "integrations": [],
+        "overview": []
+      }
+    }
+  },
+  "consistency_issues": [
+    {
+      "type": "folder_mismatch",
+      "project": "LEP",
+      "reference": "INSURANCE",
+      "missing_folders": [
+        "scripts"
+      ],
+      "extra_folders": []
+    },
+    {
+      "type": "file_mismatch",
+      "project": "LEP",
+      "reference": "INSURANCE",
+      "missing_files": [
+        ".DS_Store",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "ANALYSIS_FRAMEWORK.md"
+      ],
+      "extra_files": []
+    },
+    {
+      "type": "folder_mismatch",
+      "project": "EKYC",
+      "reference": "INSURANCE",
+      "missing_folders": [
+        "scripts"
+      ],
+      "extra_folders": []
+    },
+    {
+      "type": "file_mismatch",
+      "project": "EKYC",
+      "reference": "INSURANCE",
+      "missing_files": [
+        ".DS_Store",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "ANALYSIS_FRAMEWORK.md"
+      ],
+      "extra_files": []
+    },
+    {
+      "type": "folder_mismatch",
+      "project": "SAVING",
+      "reference": "INSURANCE",
+      "missing_folders": [
+        "operations",
+        "security",
+        "integrations",
+        "overview",
+        "scripts",
+        "business"
+      ],
+      "extra_folders": []
+    },
+    {
+      "type": "file_mismatch",
+      "project": "SAVING",
+      "reference": "INSURANCE",
+      "missing_files": [
+        "README.md",
+        ".DS_Store",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "ANALYSIS_FRAMEWORK.md"
+      ],
+      "extra_files": []
+    },
+    {
+      "type": "folder_mismatch",
+      "project": "PLATFORM",
+      "reference": "INSURANCE",
+      "missing_folders": [
+        "scripts"
+      ],
+      "extra_folders": [
+        "VDS-AI-Memory",
+        "ai-material-proposal"
+      ]
+    },
+    {
+      "type": "file_mismatch",
+      "project": "PLATFORM",
+      "reference": "INSURANCE",
+      "missing_files": [
+        ".DS_Store",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "ANALYSIS_FRAMEWORK.md"
+      ],
+      "extra_files": [
+        "payment-system-architecture-baseline.md"
+      ]
+    },
+    {
+      "type": "folder_mismatch",
+      "project": "SECURITY",
+      "reference": "INSURANCE",
+      "missing_folders": [
+        "scripts"
+      ],
+      "extra_folders": []
+    },
+    {
+      "type": "file_mismatch",
+      "project": "SECURITY",
+      "reference": "INSURANCE",
+      "missing_files": [
+        ".DS_Store",
+        "DOCUMENTATION_CONSOLIDATION_PLAN.md",
+        "DOCUMENTATION_MAPPING.md",
+        "ANALYSIS_FRAMEWORK.md"
+      ],
+      "extra_files": [
+        "VDS_SECURITY_VULNERABILITY_ANALYSIS.md"
+      ]
+    }
+  ],
+  "missing_projects": [],
+  "consistency_score": 16.666666666666664
+}

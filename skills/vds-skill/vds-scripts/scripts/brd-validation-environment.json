@@ -1,0 +1,51 @@
+{
+    "id": "brd-validation-env",
+    "name": "BRD Validation Environment",
+    "values": [
+        {
+            "key": "scripts_path",
+            "value": "/Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/WHO-project/vds-scripts/scripts",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "validation_script",
+            "value": "validate_brd_coverage.py",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "docs_root",
+            "value": "/Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/INSURANCE-project/insurance-document",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "minimum_coverage_threshold",
+            "value": "80",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "target_coverage_threshold",
+            "value": "100",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "test_timeout",
+            "value": "30000",
+            "enabled": true,
+            "type": "default"
+        },
+        {
+            "key": "report_output_path",
+            "value": "/Users/cuongdv3/Library/Mobile Documents/com~apple~CloudDocs/project/vds/WHO-project/vds-scripts/scripts/brd_coverage_report.json",
+            "enabled": true,
+            "type": "default"
+        }
+    ],
+    "_postman_variable_scope": "environment",
+    "_postman_exported_at": "2025-01-06T10:30:00.000Z",
+    "_postman_exported_using": "Postman/10.20.0"
+}

@@ -1,0 +1,158 @@
+# Grep Pattern Library — sdlc-validate-srs
+# SRS-specific patterns + Vietnamese language patterns
+# Extends: .claude/skills/bmad-validate-prd/data/grep-patterns.yaml (for shared patterns)
+# Used by: step-v-05-quality.md, step-v-03-completeness.md, step-v-04-consistency.md
+
+vague_vietnamese:
+  description: "Vietnamese ambiguous/non-mandatory language in requirements — flag in BRs, NFRs, ACs"
+  severity_thresholds:
+    critical: 10
+    warning: 5
+    pass: 0
+  patterns:
+    - pattern: "\\bcó thể\\b|\\bnên\\b|\\bthường\\b|\\btùy trường hợp\\b|\\btùy theo\\b"
+      category: conditional_language
+    - pattern: "\\bmột số\\b|\\bphù hợp\\b|\\bthích hợp\\b|\\bhợp lý\\b"
+      category: vague_quantity
+    - pattern: "\\bTBD\\b|\\bTODO\\b|\\bcần xác nhận\\b|\\bsẽ bổ sung\\b"
+      category: placeholder
+    - pattern: "\\{\\{[^}]*\\}\\}"
+      category: template_placeholder
+    - pattern: "\\bv\\.v\\.\\b|\\betc\\.\\b|\\bvà các\\b.{0,20}\\bkhác\\b"
+      category: open_ended_list
+
+vague_english:
+  description: "English ambiguous terms in SRS (mixed-language docs)"
+  patterns:
+    - pattern: "\\bshould\\b|\\bmay\\b|\\bmight\\b|\\bcould\\b|\\bpossibly\\b"
+      category: non_mandatory
+    - pattern: "\\busually\\b|\\btypically\\b|\\bgenerally\\b|\\bnormally\\b"
+      category: conditional
+    - pattern: "\\bsomething like\\b|\\bsimilar to\\b|\\bif possible\\b"
+      category: vague_scope
+
+ac_format:
+  description: "Acceptance Criteria format patterns"
+  patterns:
+    - pattern: "\\bGiven\\b.{1,300}\\bWhen\\b.{1,300}\\bThen\\b"
+      category: gherkin_gwt
+      multiline: true
+    - pattern: "\\bKhi\\b.{1,300}\\bThì\\b|\\bNếu\\b.{1,300}\\bkết quả\\b"
+      category: vietnamese_conditional_ac
+      multiline: true
+    - pattern: "AC-[A-Z]{2}-\\d{2}-\\d{3}|AC-\\d+"
+      category: ac_id_pattern
+
+srs_structure:
+  description: "SRS section heading patterns for existence checks"
+  patterns:
+    # Core required sections
+    - pattern: "^## 1\\.|^## 1 |^## Mô tả chung|^## Overview|^## Tổng quan"
+      category: section_overview
+    - pattern: "^### 1\\.1|Tóm tắt Use Cases|Use Case Summary"
+      category: section_uc_summary
+    - pattern: "^### 1\\.2|Định nghĩa|Từ viết tắt|Glossary"
+      category: section_glossary
+    - pattern: "^### 1\\.3|Tài liệu tham chiếu|References"
+      category: section_references
+    - pattern: "^## 3\\.|^## 3 |Bảng.*Thực thể|ERD|Entity.*Relationship"
+      category: section_erd
+    - pattern: "^## 4\\.|^## 4 |Danh sách mã lỗi|Error Codes|Mã lỗi"
+      category: section_error_codes
+    - pattern: "^## 5\\.|^## 5 |Chức năng ảnh hưởng|Impact|Tác động"
+      category: section_impact
+    - pattern: "^## 6\\.|^## 6 |Business Rules|Quy tắc nghiệp vụ"
+      category: section_business_rules
+    - pattern: "^## 7\\.|^## 7 |Yêu cầu phi chức năng|Non-Functional|NFR"
+      category: section_nfr
+    - pattern: "^## 8\\.|^## 8 |Ràng buộc|Giả định|Phụ thuộc|Dependencies|Constraints"
+      category: section_dependencies
+    - pattern: "^## 9\\.|^## 9 |State Diagram|Sơ đồ trạng thái|Không áp dụng"
+      category: section_state_diagrams
+    - pattern: "^## 10\\.|^## 10 |Ma trận truy xuất|Traceability|RTM|Mini-RTM"
+      category: section_traceability
+    # UC structure patterns
+    - pattern: "Màn hình|Screens|SCR-"
+      category: uc_screens
+    - pattern: "@startuml.*@enduml|sequenceDiagram"
+      category: uc_sequence_diagram
+      multiline: true
+    - pattern: "Bảng mô tả luồng|Luồng chính|Main Flow|Luồng nghiệp vụ"
+      category: uc_flow_table
+    # Edge case / AC coverage
+    - pattern: "Luồng ngoại lệ|Exception Flow|Luồng thay thế|Alternative Flow"
+      category: exception_flow
+    - pattern: "Acceptance Criteria|Tiêu chí chấp nhận|AC-"
+      category: acceptance_criteria
+
+id_patterns:
+  description: "ID format validation patterns for SRS artifacts"
+  patterns:
+    - pattern: "UC-[A-Z]{2,4}-\\d{2}"
+      category: uc_id_valid
+    - pattern: "SCR-[A-Z]{2,4}-\\d{2}"
+      category: screen_id_valid
+    - pattern: "BR-[A-Z]{2,4}-\\d{3}|BR-\\d{3}"
+      category: br_id_valid
+    - pattern: "\\bUC-[a-z]|\\bSCR-[a-z]|\\bBR-[a-z]"
+      category: id_lowercase_violation
+
+diagram_syntax:
+  description: "PlantUML and Mermaid diagram validation"
+  patterns:
+    - pattern: "@startuml"
+      category: plantuml_open
+    - pattern: "@enduml"
+      category: plantuml_close
+    - pattern: "stateDiagram-v2|stateDiagram"
+      category: mermaid_state
+    - pattern: "\\{\\{[^}]*\\}\\}"
+      category: unfilled_placeholder_in_diagram
+
+service_references:
+  description: "Service name patterns referenced in SRS flows/sequence diagrams"
+  patterns:
+    - pattern: "ntbh-[a-z]+-service|[a-z]+-service(?!s)"
+      category: service_name
+    - pattern: "kong-gateway|kafka|redis|keycloak"
+      category: infra_component
+
+state_machine:
+  description: "State extraction patterns from state diagrams and state tables"
+  patterns:
+    - pattern: "\\[\\*\\]\\s*-->\\s*(\\w+)|state\\s+\"([^\"]+)\"|:\\s*(\\w+)\\s*$"
+      category: plantuml_state
+    - pattern: "^\\s*[A-Z_]+\\s*-->|^\\s*(\\w+)\\s*:\\s*on\\s+"
+      category: state_transition
+    - pattern: "Trạng thái|Tên trạng thái|State Name|Status"
+      category: state_table_header
+
+upstream_extraction:
+  description: "Patterns for extracting structured artifacts from upstream docs (BRD, PRD, Architecture). Used by V-02 6e and V-04 2.14 to diff SRS vs upstream."
+  patterns:
+    # Entity table field rows — "| N | field_name | TYPE | required | description |"
+    - pattern: "^\\|\\s*\\d+\\s*\\|\\s*(\\w+)\\s*\\|\\s*(\\w[^|]*)\\|"
+      category: entity_field_row
+    # ENUM values in entity tables — "SUBMITTED / UNDER_REVIEW / ..."
+    - pattern: "\\|\\s*ENUM\\s*\\|[^|]*\\|\\s*([^|]+)\\|"
+      category: entity_enum_values
+    # State flow in Vietnamese business text — "Trạng thái: A → B → C"
+    - pattern: "Trạng thái[^:]*:\\s*(.+(?:→|->).+)"
+      category: state_flow_text
+    # State chains in English — "SUBMITTED->DOCUMENTS_PENDING->IN_REVIEW->..."
+    - pattern: "[A-Z][A-Z_]+(?:->|→)[A-Z][A-Z_]+(?:(?:->|→)[A-Z][A-Z_]+)*"
+      category: state_chain
+    # Kafka/event topic names — "claim.submitted", "payment.completed"
+    - pattern: "\\b[a-z]+\\.(?:submitted|approved|rejected|completed|created|updated|cancelled|disbursed|expired|failed|processing|changed)\\b"
+      category: kafka_event_name
+    # Actor names in table rows — "| Actor_Name |" or "| Ai thực hiện |" column values
+    - pattern: "\\|\\s*(Policyholder|Claims Examiner|System|Admin|Platform|Insurer|Customer|Agent|CSKH)\\s*\\|"
+      category: actor_name_in_table
+    # Phase assignment — "MVP", "Phase 1.5", "Phase 2"
+    - pattern: "\\b(?:MVP|Phase [12](?:\\.5)?|Bắt buộc|Nên có)\\b"
+      category: phase_assignment
+    # API endpoint paths
+    - pattern: "(?:GET|POST|PUT|PATCH|DELETE)\\s+/api/v\\d+/[\\w/{}]+"
+      category: api_endpoint
+    # PlantUML state declarations + transitions (reuse works on BRD diagrams too)
+    # Already covered by state_machine group — reference those patterns

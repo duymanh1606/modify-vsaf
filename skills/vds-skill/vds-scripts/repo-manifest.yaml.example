@@ -1,0 +1,25 @@
+repositories:
+  - name: document-management
+    path: LEP-project/document-management
+    project: lep
+    branch: release
+    tags: ["core"]
+    hooks:
+      post_pull:
+        - "./mvnw --quiet -DskipTests package"
+  - name: insurance-customer-webview
+    path: INSURANCE-project/insurance-customer-webview
+    project: insurance
+    branch: release
+    tags: ["frontend"]
+    hooks:
+      post_pull:
+        - "pnpm install"
+  - name: ekyc-service
+    path: EKYC-project/ekyc-service
+    project: ekyc
+    branch: release
+    tags: ["backend"]
+    hooks:
+      pre_pull:
+        - "scripts/check-env.sh"

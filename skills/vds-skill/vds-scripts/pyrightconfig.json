@@ -1,0 +1,82 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.14",
+  "include": [
+    "vds_agent_core/src",
+    "vds_agent_core/tests",
+    "scheduler_orchestrator/src",
+    "scheduler_orchestrator/tests",
+    "vds_cli/src",
+    "vds_cli/tests",
+    "vds_cli_common/src",
+    "platform_core/src",
+    "memory_orchestrator/src",
+    "memory_orchestrator/tests",
+    "audit_orchestrator/src",
+    "audit_orchestrator/tests",
+    "spec_orchestrator/src",
+    "progress_report_orchestrator/src",
+    "progress_report_orchestrator/tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/.pytest_cache",
+    "**/.ruff_cache",
+    "**/node_modules",
+    "**/build",
+    "**/dist",
+    "**/.gitnexus",
+    "**/graphify-out",
+    "**/tests/fixtures/python-noncompliant",
+    "tmp",
+    "docs"
+  ],
+  "extraPaths": [
+    "vds_agent_core/src",
+    "scheduler_orchestrator/src",
+    "vds_cli/src",
+    "vds_cli_common/src",
+    "platform_core/src",
+    "memory_orchestrator/src",
+    "audit_orchestrator/src",
+    "spec_orchestrator/src",
+    "progress_report_orchestrator/src"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "vds_agent_core",
+      "extraPaths": ["vds_agent_core/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "scheduler_orchestrator",
+      "extraPaths": ["scheduler_orchestrator/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "vds_cli",
+      "extraPaths": ["vds_cli/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "memory_orchestrator",
+      "extraPaths": ["memory_orchestrator/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "audit_orchestrator",
+      "extraPaths": ["audit_orchestrator/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "progress_report_orchestrator",
+      "extraPaths": ["progress_report_orchestrator/src", "vds_cli_common/src", "platform_core/src"]
+    },
+    {
+      "root": "spec_orchestrator",
+      "extraPaths": ["spec_orchestrator/src", "vds_cli_common/src", "platform_core/src"]
+    }
+  ],
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "none",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning",
+  "useLibraryCodeForTypes": true
+}

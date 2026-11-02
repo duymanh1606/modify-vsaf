@@ -1,0 +1,29 @@
+# vds-scripts .graphifyignore
+# Exclude build artifacts, caches, and non-source content
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+site-packages/
+
+# Build/dist
+dist/
+build/
+
+# Graphify output
+graphify-out/
+
+# Large generated files
+*.sqlite3
+*.db
+htmlcov/
+
+# Archive/historical
+scripts/archive/

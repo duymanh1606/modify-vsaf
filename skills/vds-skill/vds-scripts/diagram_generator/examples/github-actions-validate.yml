@@ -1,0 +1,39 @@
+name: Validate Diagrams
+
+on:
+  push:
+    paths:
+      - "docs-nttc/projects/**.puml"
+      - "vds-scripts/diagram_generator/**"
+  pull_request:
+    paths:
+      - "docs-nttc/projects/**.puml"
+      - "vds-scripts/diagram_generator/**"
+
+jobs:
+  validate-diagrams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+      # PlantUML is required for validation (enabled by default during generation)
+      # This example validates existing diagrams, but generation also validates automatically
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y plantuml
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Validate PlantUML diagrams
+      # Option 1: Validate existing diagrams (no regeneration)
+        run: |
+          cd vds-scripts/diagram_generator
+          ./ci_validate.sh INSURANCE
+
+      # Option 2: Generate and validate (validation is automatic)
+      # - name: Generate and validate diagrams
+      #   run: |
+      #     cd vds-scripts/diagram_generator
+      #     uv run python generate_all_diagrams.py --project INSURANCE
+      #     # Validation runs automatically - no --validate-diagrams flag needed
+

@@ -1,0 +1,67 @@
+# Workflow — create_prd_epics
+# Muc tieu: Stage 1 Discovery — tao PRD + Epics/Stories (+ UX sketch v0 light). 1 HITL gate.
+# Tach tu batch-discovery-architecture cu: phan Discovery dung rieng, doc lap voi phan Architecture.
+# Phase trong Manual: Stage 1.
+#
+# Chay: vsaf run NTAPP/create_prd_epics
+# Xong gate -> chay tiep: vsaf run NTAPP/reproduce_architecture
+
+name: create_prd_epics
+description: "Stage 1 Discovery — tao PRD + Epics/Stories + UX sketch (1 HITL approval gate)"
+nodes:
+  - id: create-prd
+    description: "Stage 1 — tao PRD"
+    prompt: |
+      Invoke: Skill(skill="bmad-create-prd") — bat buoc, khong thay the bang cach tu viet PRD.
+
+      Output: NTAPP-output/Stage_1_Discovery/prd.md (duong dan do BMM config quyet dinh — khong tu doi cho khac).
+      Node create-epics doc chinh file nay, va node stage1-approval kiem front-matter approved_by cua no,
+      nen PRD phai la file that tren dia — tom tat trong bao cao khong tinh la da lam.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-create-prd | yes|no | <ly do neu no>
+    workspace: false
+
+  - id: create-epics
+    description: "Stage 1 — tao Epics + Stories"
+    prompt: |
+      Invoke: Skill(skill="bmad-create-epics-and-stories") — bat buoc, khong thay the bang cach tu liet ke epic.
+
+      Input: NTAPP-output/Stage_1_Discovery/prd.md (node create-prd vua sinh).
+      Output: NTAPP-output/Stage_1_Discovery/epics.md.
+      Ma EPIC sinh o day la dinh danh downstream: cot Epic cua WBS va graph-completeness cua drift-detector
+      deu tham chieu thang vao no — dat ma xong thi khong doi nua.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-create-epics-and-stories | yes|no | <ly do neu no>
+    depends_on: [create-prd]
+    workspace: false
+
+  - id: ux-sketch
+    description: "Stage 1 — UX sketch v0 light (skill tu skip neu khong can sketch)"
+    prompt: |
+      Invoke: Skill(skill="NTAPP-ux-sketch") — bat buoc, khong thay the bang cach tu phac thao.
+
+      Input: prd.md + epics.md trong NTAPP-output/Stage_1_Discovery/.
+      Skill tu chay applicability gate: project khong co man hinh moi thi skill tu SKIP va bao ly do.
+      SKIP la ket qua hop le cua node nay, nhung KHONG phai ly do de bo qua viec goi skill — quyet dinh skip
+      phai do skill dua ra sau khi doc state, khong phai do orchestrator doan truoc.
+      Output khi khong skip: ux_sketch.md + preview HTML, la seed cho Stage 3b (/NTAPP-ux-design chi mo rong, khong viet lai).
+
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ux-sketch | yes|no | <ly do neu no>
+    depends_on: [create-epics]
+    workspace: false
+
+  - id: stage1-approval
+    description: "HITL — PM ky prd.md, BA ky epics.md (approved_by + approved_at)"
+    # hook: Hook 1 approval-gate (reuse) — same check fire o UserPromptSubmit cua skill Stage 2.
+    bash: |
+      miss=0
+      for f in NTAPP-output/Stage_1_Discovery/prd.md NTAPP-output/Stage_1_Discovery/epics.md; do
+        if ! grep -q '^approved_by:' "$f" 2>/dev/null; then echo "THIEU approval: $f"; miss=1; fi
+      done
+      if [ "$miss" != 0 ]; then
+        echo "Them front-matter approved_by + approved_at vao file tren, roi: vsaf run NTAPP/create_prd_epics --resume <runId>"
+        exit 1
+      fi
+      echo "Stage 1 approved — chay tiep: vsaf run NTAPP/reproduce_architecture"
+    depends_on: [create-epics, ux-sketch]
+    workspace: false

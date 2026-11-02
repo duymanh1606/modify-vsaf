@@ -1,0 +1,50 @@
+[project]
+name = "vds-vidp-orchestrator"
+version = "0.1.0"
+description = "VDS VIDP Orchestrator — trigger third-party workflows and poll job status via VIDP gateway"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "VDS Team" }]
+keywords = ["vidp", "idp", "third-party", "vds", "orchestrator"]
+
+dependencies = [
+    "httpx>=0.28.1",
+    "typer>=0.24.1",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "structlog>=25.5.0",
+    "rich>=14.3.3",
+    "vds-cli-common",
+    "vds-platform-core",
+]
+
+[project.scripts]
+vds-vidp = "vds_vidp_orchestrator.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-httpx>=0.35.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.11.12",
+]
+
+[build-system]
+requires = ["hatchling>=1.20.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vds_vidp_orchestrator"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+vds_vidp_orchestrator = { workspace = true }
+vds-cli-common = { workspace = true }
+vds-platform-core = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

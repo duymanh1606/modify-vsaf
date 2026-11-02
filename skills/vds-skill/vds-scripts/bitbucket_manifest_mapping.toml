@@ -1,0 +1,34 @@
+# Bitbucket project → manifest mapping rules for dynamic repo-manifest.yaml generation
+#
+# This file is intentionally minimal: it only defines how to convert a Bitbucket
+# project key into:
+# - project_id: short id used in repo-manifest.yaml (lep, insurance, saving, ekyc)
+# - path_prefix: local path prefix in the monorepo
+# - default_branch: default branch name when generating entries
+#
+# To add more projects later, extend this file and rerun the generator.
+
+[projects.LEP]
+project_id = "lep"
+path_prefix = "LEP-project"
+default_branch = "release"
+
+[projects.INSURANCE]
+project_id = "insurance"
+path_prefix = "INSURANCE-project"
+default_branch = "release"
+
+[projects.SAVING]
+project_id = "saving"
+path_prefix = "SAVING-project"
+default_branch = "release"
+
+[projects.EKYC]
+project_id = "ekyc"
+path_prefix = "EKYC-project"
+default_branch = "release"
+
+[projects.DOPS]
+project_id = "dops"
+path_prefix = "DOPS-project"
+default_branch = "master"

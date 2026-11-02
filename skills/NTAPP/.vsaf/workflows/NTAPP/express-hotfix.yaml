@@ -1,0 +1,160 @@
+# Workflow 5 — express-hotfix
+# Muc tieu: Hotfix nhanh cho 5 preset (typo/config/log-level/lint/test-fix), bypass DD, compensate trong 48h.
+# Phase trong Manual: Lane 1 (§7 Express lane).
+#
+# Chay: vsaf run NTAPP/express-hotfix --args "<preset> | <intent>"
+# Express lane GIU PR (exception) — can traceability cho viec compensate 48h.
+#
+# ===== HOP DONG ENGINE (giu dung, sai la node chay am tham SAI) =====
+# - Node THIEU `workspace: false` chay trong .vsaf/worktrees/run-* = ban FORK cua SPEC repo, KHONG phai code repo.
+# - Bash node KHONG co bien WORKSPACE (engine chi truyen ARTIFACTS_DIR) -> `cd "$WORKSPACE"` la no-op:
+#   khong bao loi, chi lang le o nguyen trong worktree spec repo. Truoc day test-gate viet
+#   `cd "$WORKSPACE" && npm test` nen no chay `npm test` cua CHINH spec repo (script mac dinh la
+#   `echo "Error: no test specified" && exit 1`) -> node luon fail, loop 2 lan roi workflow chet,
+#   va chua bao gio dung toi code repo that. Vi vay MOI node o day dat `workspace: false`,
+#   node bash tu `cd` vao CODE repo doc tu state file.
+# - Trong `bash:` node, $ARGUMENTS bi engine shell-escape san (macOS/Linux boc dau ', Windows boc dau ")
+#   -> gan BARE (`args=$ARGUMENTS`), KHONG tu boc quote them. Bare la dang dung tren CA HAI nen tang.
+#   Trong `prompt:` node thi khong escape (doc raw binh thuong). Fixture: tests/args-quoting-fixture.yaml.
+#
+# ===== STATE FILE =====
+#   NTAPP-output/.work/hotfix/code-repo  <- code-edit-test ghi: ABSOLUTE path CODE repo vua sua (test-gate doc)
+# .work/ da gitignore -> machine-local.
+#
+# Chan lam dung Express lane: Hook 16 hotfix-classifier (UserPromptSubmit) — khong khop 5 preset thi BLOCK
+# va redirect sang feature-triage. Node classify duoi day la ban doi chieu cho nguoi doc, KHONG phai cong cung.
+
+name: express-hotfix
+description: "Express lane cho 5 loai hotfix preset. --args '<preset> | <intent>'"
+# args = plain string: "<preset> | <intent>" -> $ARGUMENTS (node tu tach bang `|`).
+# KHONG khai `inputs:`: engine ep args thanh JSON object khi co `inputs:`, nhung $ARGUMENTS chi tra raw string.
+nodes:
+  - id: classify
+    description: "Bat buoc dev declare preset Lane 1 explicit (chong abuse Express lane)"
+    # hook: Hook 16 hotfix-classifier — regex match preset list; khong match -> redirect feature-triage.
+    prompt: |
+      Doi chieu $ARGUMENTS voi preset list [typo, config, log-level, lint, test-fix].
+      Khop -> tiep tuc Express lane. Khong khop -> STOP, huong dan chay skill /ntapp-feature-triage "<intent>"
+      (skill truc tiep — KHONG co workflow NTAPP/feature-triage).
+    workspace: false
+
+  - id: mini-dd
+    description: "Sinh mini-DD theo template preset (<= 30 phut)"
+    # Truoc day node nay la `command: bmad-quick-dev` — TRUNG y het node code-edit-test ben duoi (`description:`
+    # la metadata, khong vao prompt) nen ca hai nhan cung mot chi dan va quick-dev chay hai lan, khong ai sinh mini-DD.
+    # Chuyen sang prompt: de tach doi hai vai — node nay CHI len ke hoach, node sau moi sua code.
+    prompt: |
+      Invoke: Skill(skill="bmad-quick-dev", args="$ARGUMENTS") — bat buoc, khong thay the bang cach tu viet ke hoach.
+
+      $ARGUMENTS co dang "<preset> | <intent>": preset = phan TRUOC dau "|", intent = phan SAU dau "|" (trim space).
+
+      PLAN-ONLY: chay skill den het buoc lap ke hoach roi DUNG. Node nay TUYET DOI khong sua file code —
+      viec do la cua node code-edit-test ke tiep. Chay het ca skill o day nghia la hotfix bi lam hai lan.
+
+      Ket qua la mini-DD (<= 30 phut doc) cho dung pham vi preset:
+        - id lay tu header `id:` cua file sap sua (Express bypass Rule 2 nen unit co the chua co trong WBS,
+          nhung Rule 1 van bat buoc file code co header id).
+        - Ghi vao NTAPP-output/Stage_4_Design/detailed_design/{id}_detailed_design.md, danh dau ro la ban mini.
+          Dung dung duong dan nay: sau 48h phai kiem lai chinh file nay da duoc thay bang ban DD day du chua.
+        - Noi dung toi thieu: pham vi thay doi, file se dung, rui ro, cach verify.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-quick-dev | yes|no | <ly do neu no>
+    depends_on: [classify]
+    workspace: false
+
+  - id: code-edit-test
+    description: "Sua code + test (Express: bypass Rule 2/3, van enforce Rule 1/4/8/9). Ghi code-repo cho test-gate"
+    # hook: Hook 9 build-loop (reuse, EXPRESS_LANE=1 skip Rule 2/3).
+    # Chuyen tu `command:` sang `prompt:` KHONG phai vi args bi rot (args van den noi), ma vi node nay
+    # phai lam them 1 viec ma command node khong the: GHI duong dan code repo ra state. test-gate la bash
+    # node, khong co cach nao tu biet repo nao vua duoc sua (WBS khong co cot repo, engine khong truyen).
+    prompt: |
+      $ARGUMENTS co dang "<preset> | <intent>": preset = phan TRUOC dau "|", intent = phan SAU dau "|" (trim space).
+      Invoke: Skill(skill="bmad-quick-dev", args="$ARGUMENTS") — bat buoc, khong thay the bang cach tu sua code.
+      Thuc hien hotfix theo intent, pham vi bo hep DUNG bang preset — KHONG noi rong.
+      Node mini-dd truoc do da chay skill nay o che do PLAN-ONLY va sinh mini-DD; o day moi la buoc SUA CODE that,
+      va phai bam theo mini-DD do — khong thiet ke lai tu dau.
+      Express lane: Rule 2 (WBS lookup) + Rule 3 (DD) duoc bypass qua EXPRESS_LANE=1; Rule 1 (header id +
+      dd_version), Rule 4 (token), Rule 8 (infra), Rule 9 (emoji) VAN ap dung day du.
+
+      GHI STATE (BAT BUOC — test-gate la node bash, khong tu suy ra duoc):
+        NTAPP-output/.work/hotfix/code-repo : duong dan TUYET DOI cua CODE repo vua sua (dung 1 dong,
+        khong newline thua; mkdir -p truoc). TUYET DOI khong phai spec repo.
+        Phai sua o >1 repo -> DUNG, bao escalate: Express lane la 1 thay doi nho, cham nhieu repo nghia la
+        chon nham lane -> chay feature-triage.
+      Bao cao: preset, file da sua, code repo, va vi sao thay doi nam gon trong preset.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-quick-dev | yes|no | <ly do neu no>
+    depends_on: [mini-dd]
+    workspace: false
+
+  - id: test-gate
+    description: "Chay test suite trong CODE repo da sua (stack-aware); fail -> quay lai code-edit-test (max 2 lan)"
+    # Stack-aware thay vi hardcode `npm test`: 5 preset cua Lane 1 (nhat la lint / test-fix) ap cho moi stack,
+    #   hardcode npm la sai voi repo Java/Go/Python ngay tu dau.
+    # `npm test` chi dung khi package.json co script "test" (giong Hook 10) — khong thi npm exit non-zero vi
+    #   "Missing script: test" va loop lai code-edit-test vo nghia.
+    # timeout: engine default 5 phut cho bash node -> suite dai hon bi coi la fail gia roi loop lai.
+    timeout: 1800000
+    bash: |
+      spec="$PWD"
+      state="$spec/NTAPP-output/.work/hotfix"
+      if [ ! -f "$state/code-repo" ]; then
+        echo "FAIL: khong thay $state/code-repo — node code-edit-test chua ghi duong dan CODE repo."
+        echo "Khong doan repo: chay test trong spec repo cho ket qua vo nghia (xanh gia hoac do gia)."
+        exit 1
+      fi
+      repo=$(head -n1 "$state/code-repo" | sed 's/[[:space:]]*$//')
+      if [ -z "$repo" ] || [ ! -d "$repo" ]; then
+        echo "FAIL: code repo khong ton tai: [$repo]"; exit 1
+      fi
+      cd "$repo" || exit 1
+      echo "[test-gate] code repo = $repo"
+
+      cmd=""
+      if [ -f package.json ] && grep -q '"test"' package.json; then cmd="npm test"
+      elif [ -f go.mod ]; then cmd="go test ./..."
+      elif [ -f pom.xml ]; then cmd="mvn -q test"
+      elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then cmd="./gradlew test"
+      elif [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f setup.cfg ] || [ -f conftest.py ]; then cmd="pytest -q"
+      fi
+
+      if [ -z "$cmd" ]; then
+        echo "WARN: khong detect duoc test runner trong $repo -> bo qua buoc test o day."
+        echo "WARN: Hook 10 verification-gate (test + lint) van chan o node fast-pr truoc khi mo PR."
+        exit 0
+      fi
+      echo "[test-gate] chay: $cmd"
+      sh -c "$cmd" 2>&1
+    depends_on: [code-edit-test]
+    workspace: false
+    loop:
+      on_fail: code-edit-test
+      max_retries: 2
+      inject_error: true
+
+  - id: fast-pr
+    description: "Finishing branch + fast PR (Express exception — giu PR pattern)"
+    # hook (pre): Hook 10 verification-gate (relaxed) — test + lint pass bat buoc; ATDD bypass.
+    prompt: |
+      Invoke: Skill(skill="superpowers-finishing-a-development-branch") — bat buoc, khong tu chay git push tay.
+
+      Chay trong CODE repo ghi o NTAPP-output/.work/hotfix/code-repo, KHONG phai spec repo.
+      Skill se hoi chon huong ket thuc (merge / PR / cleanup): Express lane chon PR remote. Day la ngoai le co y
+      cua lane nay — viec compensate 48h can mot PR de bam vao — nen khong duoc thay bang merge thang.
+      Skill tu chay lai test truoc khi mo PR; test do thi DUNG, khong mo PR.
+      Mo ta PR ghi ro: preset da dung, day la Express lane bypass Rule 2/3, va han compensate la 48h.
+      Bao cao lai URL PR — node schedule-compensate can no.
+
+      Ket thuc bao cao bang: SKILL_INVOKED: superpowers-finishing-a-development-branch | yes|no | <ly do neu no>
+    depends_on: [test-gate]
+    workspace: false
+
+  - id: schedule-compensate
+    description: "Nhac no 48h: full DD + WBS entry + ripple audit — verify THU CONG khi review PR"
+    # Note: VSAF khong co cron primitive trong engine — dat lich qua /schedule hoac CI cron ben ngoai.
+    bash: |
+      echo "TODO compensate trong 48h: full DD + WBS entry + ripple audit cho hotfix nay."
+      echo "KHONG con workflow tracker tu dong -> nguoi review PR tu kiem du 3 muc tren truoc khi merge."
+    depends_on: [fast-pr]
+    workspace: false

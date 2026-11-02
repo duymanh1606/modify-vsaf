@@ -1,0 +1,7 @@
+name: sdlc-testcase
+description: "Sub-flow: Test Design — generate test cases from SRS (tests before code)"
+
+nodes:
+  - id: test-design
+    command: sdlc-test-design
+    workspace: false

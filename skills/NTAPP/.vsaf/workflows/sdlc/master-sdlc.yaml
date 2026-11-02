@@ -1,0 +1,55 @@
+name: master-sdlc
+description: "Full SDLC pipeline — Discovery → PRD → Architecture → SRS → Test Design → Implement → Review → Feature Complete → Ship"
+nodes:
+  - id: discovery
+    description: "Phase 1 — Discovery: analyze requirements, grill stakeholders, brainstorm solutions"
+    command: sdlc-discovery
+    workspace: false
+  - id: prd
+    description: "Phase 2 — PRD: write Product Requirements Document from discovery output"
+    command: sdlc-prd
+    depends_on: [discovery]
+    workspace: false
+  - id: architecture
+    description: "Phase 3 — Architecture: design solution architecture and write ADR + epic breakdown"
+    command: sdlc-architecture
+    depends_on: [prd]
+    workspace: false
+  - id: srs
+    description: "Phase 4 — SRS: write Software Requirements Specification with API contracts"
+    command: sdlc-srs
+    depends_on: [architecture]
+    workspace: false
+  - id: test-design
+    description: "Phase 5 — Test Design: generate test cases from SRS (tests before code)"
+    command: sdlc-test-design
+    depends_on: [srs]
+    workspace: false
+  - id: implement
+    description: "Phase 6 — Implement: TDD implementation per vertical slice"
+    command: sdlc-implement
+    depends_on: [test-design]
+  - id: test-gate
+    description: "Phase 6b — Test Gate: run automated tests to verify implementation"
+    bash: |
+      cd $WORKSPACE && npm test 2>&1
+    depends_on: [implement]
+    loop:
+      on_fail: implement
+      max_retries: 3
+      inject_error: true
+  - id: review
+    description: "Phase 7 — Review: code review against SRS, architecture, and best practices"
+    command: sdlc-review
+    depends_on: [test-gate]
+    workspace: false
+  - id: complete
+    description: "Phase 8 — Feature Complete: update knowledge base and project documentation"
+    command: sdlc-feature-complete
+    depends_on: [review]
+    workspace: false
+  - id: ship
+    description: "Phase 9 — Ship: create PR, final checks, deploy"
+    command: sdlc-ship
+    depends_on: [complete]
+    workspace: false

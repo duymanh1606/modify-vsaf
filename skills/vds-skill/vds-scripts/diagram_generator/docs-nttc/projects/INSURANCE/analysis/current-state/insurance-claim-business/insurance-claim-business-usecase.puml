@@ -1,0 +1,14 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+skinparam shadowing false
+
+title insurance-claim-business - Use Case Diagram
+
+actor "Client" as Client
+
+
+@enduml

@@ -1,0 +1,35 @@
+name: hotfix
+description: "Hotfix — Analyze → PRD → Implement (TDD) → Ship"
+
+nodes:
+  - id: analyze
+    description: "Analyze — grill user, GitNexus impact, root cause, blast radius"
+    command: sdlc-hotfix-analyze
+    workspace: false
+
+  - id: prd
+    description: "PRD — fix requirements, acceptance criteria, scope boundary"
+    command: sdlc-hotfix-prd
+    depends_on: [analyze]
+    workspace: false
+
+  - id: implement
+    description: "Implement — TDD (RED → GREEN → REFACTOR), SonarQube-in-loop"
+    command: sdlc-hotfix-implement
+    depends_on: [prd]
+
+  - id: test-gate
+    description: "Test Gate — run full test suite"
+    bash: |
+      cd $WORKSPACE && npm test 2>&1
+    depends_on: [implement]
+    loop:
+      on_fail: implement
+      max_retries: 3
+      inject_error: true
+
+  - id: ship
+    description: "Ship — commit, PR on hotfix branch"
+    command: sdlc-hotfix-ship
+    depends_on: [test-gate]
+    workspace: false

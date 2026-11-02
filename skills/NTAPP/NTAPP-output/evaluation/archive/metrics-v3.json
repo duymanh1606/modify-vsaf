@@ -1,0 +1,295 @@
+{
+  "slices": {},
+  "units": {},
+  "defers": [],
+  "totals": {
+    "ac_total": 0,
+    "review_patch": 0,
+    "review_defer": 0,
+    "defer_count": 0,
+    "defer_avoidable": 0,
+    "defer_rich": 0,
+    "defer_bullet": 0,
+    "defer_capture_rate": null,
+    "defer_closed": 0,
+    "closure_rate": null,
+    "fpy": null,
+    "units_func_clean": 0,
+    "units_ac_bearing": 0,
+    "ffpy_acnorm": null,
+    "func_density": null,
+    "sfpy": null,
+    "patch_density": null,
+    "functional_patch": 0,
+    "patch_excluded": 0,
+    "patch_unclassified": 0,
+    "patch_excluded_by": {},
+    "defer_by_category": {}
+  },
+  "clusters": [],
+  "scattered": {
+    "action": "— (rải rác)",
+    "count": 0,
+    "avoidable": 0,
+    "slices": [],
+    "ids": []
+  },
+  "cost": {
+    "unit": "token-proxy (~chars/4)",
+    "buckets": {
+      "design_system": 40583
+    },
+    "buckets_archived": {},
+    "code_prod_tokens": 33042,
+    "code_test_tokens": 0,
+    "code_untagged_test_tokens": 488023,
+    "code_roots": [
+      "/Users/ngoanh/Ngoanh CoWork/BMAD-METHOD",
+      "/Users/ngoanh/Ngoanh CoWork/BMAD-METHOD-NTAPP",
+      "/Users/ngoanh/Ngoanh CoWork/NTAPP-VSAF-Blended copy",
+      "/Users/ngoanh/Ngoanh CoWork/VSAFV2",
+      "/Users/ngoanh/Ngoanh CoWork/ai-operation-copilot",
+      "/Users/ngoanh/Ngoanh CoWork/cdcn-policy-management-web",
+      "/Users/ngoanh/Ngoanh CoWork/paperclip",
+      "/Users/ngoanh/Ngoanh CoWork/product-catalog-cms-fe"
+    ],
+    "ratios": {
+      "spec_design_to_code": 0.0,
+      "review_test_to_code": 14.769897175543063,
+      "all_artifact_to_code": 1.228233976711282,
+      "governance_to_code": 1.228233976711282,
+      "archive_waste": null
+    },
+    "delivered_tokens": 73625,
+    "burn": {
+      "input": 989270327,
+      "output": 13771757,
+      "total": 1003042084,
+      "per_ac": null,
+      "amplification": 13623.70784281101,
+      "by_stage": {
+        "_unattributed": {
+          "input": 989270327,
+          "output": 13771757
+        }
+      },
+      "by_slice": {
+        "_unattributed": {
+          "input": 989270327,
+          "output": 13771757
+        }
+      },
+      "components": {
+        "input": 7397612,
+        "cache_write": 51524596,
+        "cache_read": 930348119,
+        "output": 13771757
+      },
+      "cost_usd": {
+        "input": 36.7085,
+        "cache_write": 311.16255500000005,
+        "cache_read": 458.5261255,
+        "output": 340.962285
+      },
+      "cost_total_usd": 1147.3594655,
+      "cost_by_model": [
+        {
+          "label": "Opus 4.8",
+          "components": {
+            "input": 7327678,
+            "cache_write": 49151504,
+            "cache_read": 912496194,
+            "output": 13542583
+          },
+          "cost_usd": {
+            "input": 36.63839,
+            "cache_write": 307.1969,
+            "cache_read": 456.248097,
+            "output": 338.564575
+          },
+          "cost_total_usd": 1138.647962,
+          "tokens_total": 982517959
+        },
+        {
+          "label": "Haiku 4.5",
+          "components": {
+            "input": 69846,
+            "cache_write": 1973376,
+            "cache_read": 15387745,
+            "output": 103990
+          },
+          "cost_usd": {
+            "input": 0.069846,
+            "cache_write": 2.46672,
+            "cache_read": 1.5387745000000002,
+            "output": 0.51995
+          },
+          "cost_total_usd": 4.5952905,
+          "tokens_total": 17534957
+        },
+        {
+          "label": "Sonnet 4.6",
+          "components": {
+            "input": 88,
+            "cache_write": 399716,
+            "cache_read": 2464180,
+            "output": 125184
+          },
+          "cost_usd": {
+            "input": 0.000264,
+            "cache_write": 1.4989350000000001,
+            "cache_read": 0.739254,
+            "output": 1.8777599999999999
+          },
+          "cost_total_usd": 4.116213,
+          "tokens_total": 2989168
+        }
+      ],
+      "cost_priced_per_model": true,
+      "coverage": {
+        "session_min": "2026-06-05",
+        "session_max": "2026-07-07",
+        "git_first": "2020-11-17",
+        "git_last": "2026-06-17",
+        "git_commits": 8360,
+        "span_days": 2039,
+        "covered_days": 13,
+        "ratio": 0.0063756743501716525,
+        "level": "partial",
+        "lower_bound": true
+      }
+    },
+    "by_slice": {
+      "(unmapped)": {
+        "prod": 33041.75,
+        "test": 0.0
+      }
+    },
+    "by_model": {
+      "claude-opus-4-8": {
+        "input": 968975376,
+        "output": 13542583
+      },
+      "claude-haiku-4-5-20251001": {
+        "input": 17430967,
+        "output": 103990
+      },
+      "<synthetic>": {
+        "input": 0,
+        "output": 0
+      },
+      "claude-sonnet-4-6": {
+        "input": 2863984,
+        "output": 125184
+      }
+    },
+    "by_slice_model": {
+      "_unattributed": {
+        "claude-opus-4-8": {
+          "input": 968975376,
+          "output": 13542583
+        },
+        "claude-haiku-4-5-20251001": {
+          "input": 17430967,
+          "output": 103990
+        },
+        "<synthetic>": {
+          "input": 0,
+          "output": 0
+        },
+        "claude-sonnet-4-6": {
+          "input": 2863984,
+          "output": 125184
+        }
+      }
+    },
+    "by_stage_model": {
+      "_unattributed": {
+        "claude-opus-4-8": {
+          "input": 968975376,
+          "output": 13542583
+        },
+        "claude-haiku-4-5-20251001": {
+          "input": 17430967,
+          "output": 103990
+        },
+        "<synthetic>": {
+          "input": 0,
+          "output": 0
+        },
+        "claude-sonnet-4-6": {
+          "input": 2863984,
+          "output": 125184
+        }
+      }
+    }
+  },
+  "code_churn": {
+    "available": true,
+    "code_roots": [
+      "/Users/ngoanh/Ngoanh CoWork/BMAD-METHOD",
+      "/Users/ngoanh/Ngoanh CoWork/BMAD-METHOD-NTAPP",
+      "/Users/ngoanh/Ngoanh CoWork/NTAPP-VSAF-Blended copy",
+      "/Users/ngoanh/Ngoanh CoWork/VSAFV2",
+      "/Users/ngoanh/Ngoanh CoWork/ai-operation-copilot",
+      "/Users/ngoanh/Ngoanh CoWork/cdcn-policy-management-web",
+      "/Users/ngoanh/Ngoanh CoWork/paperclip",
+      "/Users/ngoanh/Ngoanh CoWork/product-catalog-cms-fe"
+    ],
+    "commits": 8360,
+    "prod": {
+      "added": 2874,
+      "deleted": 274,
+      "net_loc": 2600,
+      "churn_ratio": 1.2107692307692308
+    },
+    "test": {
+      "added": 40671,
+      "deleted": 4260
+    },
+    "other": {
+      "added": 655865,
+      "deleted": 258446
+    },
+    "by_slice": {
+      "(unmapped)": {
+        "added": 2874,
+        "deleted": 274
+      }
+    }
+  },
+  "drift": {
+    "available": false,
+    "reports": 0,
+    "blocking": 0,
+    "reconciled": 0,
+    "nonblocking": 0,
+    "halted": 0,
+    "res_l2": 0,
+    "res_l3": 0,
+    "by_unit": {}
+  },
+  "dd": {
+    "available": false,
+    "files": 0,
+    "cr_total": 0,
+    "cr_ticketed": 0,
+    "by_type": {},
+    "verdict_counts": {
+      "resolved": 0,
+      "flags": 0,
+      "none": 0
+    },
+    "flagged_units": [],
+    "findings_open": 0,
+    "tbd_confirm": 0,
+    "by_unit": {},
+    "removed_units": [],
+    "removed_by_cr": {}
+  },
+  "removed_slices": [],
+  "_run_meta": {
+    "date": "2026-07-07",
+    "round": 3
+  }
+}

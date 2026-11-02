@@ -1,0 +1,104 @@
+name: Scheduler Load Smoke (1-min)
+
+# TSK-8.4: 60-second smoke test against /health in stub mode (no DB required).
+# Validates that the FastAPI app starts correctly and responds within NFR bounds.
+#
+# Full 5-scenario baselines (S1-S5, ~85 min) are manual-only:
+#   bash scheduler_orchestrator/tests/load/run_baselines.sh
+#
+# NFR gate: GET /health p99 <= 1000 ms (validated by nfr_check.py --scenario smoke)
+#
+# Security: no github.event.* input is interpolated into run: steps.
+# All run: blocks use static strings or env-var references only.
+
+on:
+  pull_request:
+    paths:
+      - 'scheduler_orchestrator/**'
+      - '.github/workflows/scheduler-load-smoke.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'scheduler_orchestrator/**'
+
+jobs:
+  load-smoke:
+    name: Scheduler load smoke (60 s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Stub mode: no Postgres required; only /health is tested in this job.
+      VDS_SCHEDULER_ENABLED: "false"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync scheduler_orchestrator dev dependencies
+        # Installs locust + all dev deps defined in pyproject.toml [dev].
+        run: uv sync --extra dev
+        working-directory: scheduler_orchestrator
+
+      - name: Start FastAPI in stub mode
+        # Background: VDS_SCHEDULER_ENABLED=false means no DBOS/Postgres needed.
+        run: |
+          uv run uvicorn vds_scheduler_orchestrator.app:app \
+            --host 127.0.0.1 --port 8000 --log-level warning &
+          echo "FASTAPI_PID=$!" >> "$GITHUB_ENV"
+        working-directory: scheduler_orchestrator
+
+      - name: Wait for API readiness
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://127.0.0.1:8000/health; then
+              echo "API ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run 60-second Locust smoke
+        run: |
+          uv run locust \
+            --locustfile tests/load/smoke.py \
+            --headless \
+            --users 5 \
+            --spawn-rate 5 \
+            --run-time 60s \
+            --host http://127.0.0.1:8000 \
+            --csv /tmp/smoke \
+            --only-summary
+        working-directory: scheduler_orchestrator
+
+      - name: Validate NFR gate (smoke p99 <= 1000 ms)
+        run: |
+          uv run python tests/load/nfr_check.py \
+            --scenario smoke \
+            /tmp/smoke_stats.csv
+        working-directory: scheduler_orchestrator
+
+      - name: Upload smoke CSV artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-locust-csv
+          path: /tmp/smoke_*.csv
+          retention-days: 7
+
+      - name: Stop API process
+        if: always()
+        run: |
+          if [ -n "${FASTAPI_PID}" ]; then
+            kill "${FASTAPI_PID}" 2>/dev/null || true
+          fi

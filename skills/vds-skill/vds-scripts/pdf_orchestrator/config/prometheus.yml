@@ -1,0 +1,40 @@
+# Prometheus configuration for VDS PDF Orchestrator monitoring
+# Collects metrics from the application and infrastructure
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # VDS PDF Orchestrator metrics (when metrics endpoint is implemented)
+  - job_name: 'vds-pdf-orchestrator'
+    static_configs:
+      - targets: ['vds-pdf-orchestrator:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Redis metrics (if redis_exporter is added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # Node Exporter (if system metrics needed)
+  # - job_name: 'node-exporter'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+
+  # Docker metrics (if cadvisor is added)
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']

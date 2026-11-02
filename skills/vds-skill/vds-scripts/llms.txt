@@ -1,0 +1,159 @@
+# VDS Scripts
+
+> Routed CLI/orchestrator workspace for WHO automation, audit workflows, spec tooling, and operational runbooks.
+
+Use this index to quickly locate runtime contracts, command references, and phase archives.
+
+## Core Instructions
+
+- [AGENTS](./AGENTS.md): Tier-0 runtime contract and operator rules.
+- [CLI Commands Reference](./docs/agents/reference/cli-commands.md): Extended command catalog and operator patterns.
+- [Phase Changelog Archive](./docs/phases/CHANGELOG.md): Prior phase notes extracted from AGENTS history.
+
+## CLI and Packages
+
+- [vds_cli package](./vds_cli/): Unified router (`vds-cli`) and docs sync commands.
+- [audit_orchestrator package](./audit_orchestrator/): Core audit workflow engine.
+- [spec_orchestrator package](./spec_orchestrator/): Spec validate/alignment/consolidation tooling.
+
+## Optional
+
+- [Scripts README](./scripts/README.md): Shell helper contract and script authoring rules.
+
+
+## Docs Index
+
+- [README](./docs/agents/README.md)
+- [index](./docs/agents/explanation/index.md)
+- [runtime-verification-and-gap-reporting](./docs/agents/explanation/runtime-verification-and-gap-reporting.md)
+- [who-ecosystem-model](./docs/agents/explanation/who-ecosystem-model.md)
+- [02-using-vds-ai-memory](./docs/agents/how-to/02-using-vds-ai-memory.md)
+- [03-memory-cross-agent](./docs/agents/how-to/03-memory-cross-agent.md)
+- [04-using-progress-reports](./docs/agents/how-to/04-using-progress-reports.md)
+- [08-semantic-search](./docs/agents/how-to/08-semantic-search.md)
+- [choose-the-right-command-or-skill](./docs/agents/how-to/choose-the-right-command-or-skill.md)
+- [index](./docs/agents/how-to/index.md)
+- [run-ecosystem-daily-report](./docs/agents/how-to/run-ecosystem-daily-report.md): Generating the ecosystem daily summary.
+- [install-and-bootstrap-who-scripts-and-skills](./docs/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md)
+- [phase131-all-project-preparation](./docs/agents/how-to/phase131-all-project-preparation.md)
+- [phase131-bounded-parallel-analysis](./docs/agents/how-to/phase131-bounded-parallel-analysis.md)
+- [phase131-confluence-upload-recovery](./docs/agents/how-to/phase131-confluence-upload-recovery.md)
+- [phase132-department-preparation](./docs/agents/how-to/phase132-department-preparation.md)
+- [research-spec-audit-workflow](./docs/agents/how-to/orchestrator-workflows/research-spec-audit-workflow.md): Research → Spec → Audit cross-orchestrator workflow
+- [confluence-bitbucket-sync-workflow](./docs/agents/how-to/orchestrator-workflows/confluence-bitbucket-sync-workflow.md): Confluence → Bitbucket sync workflow
+- [memory-progress-workflow](./docs/agents/how-to/orchestrator-workflows/memory-progress-workflow.md): Memory → Progress tracking workflow
+- [first-audit-run](./docs/agents/how-to/first-audit-run.md)
+- [backup-restore](./docs/agents/reference/backup-restore.md): PostgreSQL, Redis, Qdrant backup and restore procedures.
+- [migration-playbook](./docs/agents/reference/migration-playbook.md): Orchestrator migration commands and profiles.
+- [decision-tree](./docs/agents/how-to/decision-tree.md)
+- [audit-triage-playbook](./docs/agents/reference/audit-triage-playbook.md)
+- [capability-coverage-review](./docs/agents/reference/capability-coverage-review.md)
+- [cli-development-standards](./docs/agents/reference/cli-development-standards.md)
+- [cli-help-matrix](./docs/agents/reference/cli-help-matrix.md)
+- [index](./docs/agents/reference/index.md)
+- [orchestrator-architecture](./docs/agents/reference/orchestrator-architecture.md)
+- [portable-paths-and-config](./docs/agents/reference/portable-paths-and-config.md)
+- [portable-paths-validation-matrix](./docs/agents/reference/portable-paths-validation-matrix.md)
+- [progress-report-cli](./docs/agents/reference/progress-report-cli.md)
+- [search-tools](./docs/agents/reference/search-tools.md)
+- [skills-reference](./docs/agents/reference/skills-reference.md)
+- [validation-and-sync-notes](./docs/agents/reference/validation-and-sync-notes.md)
+- [vds-ai-memory-api](./docs/agents/reference/vds-ai-memory-api.md)
+- [vds-cli-reference](./docs/agents/reference/vds-cli-reference.md)
+- [agent-operational-contract](./docs/agents/reference/agent-operational-contract.md)
+- [who-capability-inventory](./docs/agents/reference/who-capability-inventory.md)
+- [who-capability-routing-matrix](./docs/agents/reference/who-capability-routing-matrix.md)
+- [index](./docs/agents/tutorials/index.md)
+- [who-skills-and-scripts-onboarding](./docs/agents/tutorials/who-skills-and-scripts-onboarding.md)
+
+## Vietnamese Docs
+- [AGENTS (Tiếng Việt)](./AGENTS.vi.md): Hợp đồng vận hành Tier-0.
+- [README (Tiếng Việt)](./docs/vi/agents/README.md): Chỉ mục tài liệu tiếng Việt.
+- [Hướng dẫn cài đặt](./docs/vi/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md): Khởi tạo WHO scripts và skills (scaffold).
+- [Zero-to-Productive Developer](./docs/vi/agents/tutorials/zero-to-productive-developer.md): Hướng dẫn 7 ngày cho lập trình viên mới (scaffold).
+- [Agent Operational Contract](./docs/vi/agents/reference/agent-operational-contract.md): Hợp đồng runtime cho agent (scaffold).
+
+- [zero-to-productive-developer](./docs/agents/tutorials/zero-to-productive-developer.md): Day 0→7 human onboarding tutorial
+- [agent-operational-contract](./docs/agents/reference/agent-operational-contract.md): AI agent operational contract
+- [decision-tree](./docs/agents/how-to/decision-tree.md): Diátaxis quadrant decision guide
+
+## Phase 180 — Comprehensive Docs
+- [who-ecosystem-introduction](./docs/agents/explanation/who-ecosystem-introduction.md): Introduction
+- [quick-start](./docs/agents/tutorials/quick-start.md): Quick start tutorial
+- [system-requirements](./docs/agents/reference/system-requirements.md): System requirements
+- [configuration-reference](./docs/agents/reference/configuration-reference.md): Configuration reference
+- [features-overview](./docs/agents/explanation/features-overview.md): Features overview
+- [feature-progression-guide](./docs/agents/tutorials/feature-progression-guide.md): Day 8-14 feature progression
+- [orchestrator-comparison-matrix](./docs/agents/reference/orchestrator-comparison-matrix.md): Orchestrator comparison
+- [orchestrator-architecture](./docs/agents/reference/orchestrator-architecture.md): Orchestrator architecture
+- [system-architecture](./docs/agents/explanation/system-architecture.md): System architecture
+- [data-flow](./docs/agents/explanation/data-flow.md): Data flow diagrams
+- [whats-new](./docs/agents/explanation/whats-new.md): Recently added features
+- [development-roadmap](./docs/agents/explanation/development-roadmap.md): Development roadmap
+- [contribute-new-orchestrator](./docs/agents/how-to/contribute-new-orchestrator.md): Add a new orchestrator
+- [tips-and-tricks](./docs/agents/how-to/tips-and-tricks.md): Tips and tricks
+- [troubleshooting-guide](./docs/agents/how-to/troubleshooting-guide.md): Troubleshooting guide
+- [common-errors](./docs/agents/reference/common-errors.md): Common errors
+
+## Confluence
+- [WHO-Project Ecosystem Documentation](http://confluence.digital.vn/display/TTCN24/WHO-Project+Ecosystem+Documentation): Central human-facing documentation hub
+
+## Orchestrator Reference Docs
+
+- [orchestrator-index](docs/agents/reference/orchestrator-index.md)
+- [bitbucket-orchestrator](docs/agents/reference/bitbucket-orchestrator.md)
+- [brd-orchestrator](docs/agents/reference/brd-orchestrator.md)
+- [circular-dependency-orchestrator](docs/agents/reference/circular-dependency-orchestrator.md)
+- [confluence-orchestrator](docs/agents/reference/confluence-orchestrator.md)
+- [db-query-orchestrator](docs/agents/reference/db-query-orchestrator.md)
+- [diagrams-orchestrator](docs/agents/reference/diagrams-orchestrator.md)
+- [elastic-orchestrator](docs/agents/reference/elastic-orchestrator.md)
+- [evolution-orchestrator](docs/agents/reference/evolution-orchestrator.md)
+- [excel-orchestrator](docs/agents/reference/excel-orchestrator.md)
+- [git-orchestrator](docs/agents/reference/git-orchestrator.md)
+- [google-sheets-orchestrator](docs/agents/reference/google-sheets-orchestrator.md)
+- [grafana-orchestrator](docs/agents/reference/grafana-orchestrator.md)
+- [hexagonal-orchestrator](docs/agents/reference/hexagonal-orchestrator.md)
+- [intellij-orchestrator](docs/agents/reference/intellij-orchestrator.md)
+- [jira-orchestrator](docs/agents/reference/jira-orchestrator.md)
+- [links-orchestrator](docs/agents/reference/links-orchestrator.md)
+- [lsp-orchestrator](docs/agents/reference/lsp-orchestrator.md)
+- [markdown-orchestrator](docs/agents/reference/markdown-orchestrator.md)
+- [mcp-orchestrator](docs/agents/reference/mcp-orchestrator.md)
+- [memory-orchestrator](docs/agents/reference/memory-orchestrator.md)
+- [metabase-orchestrator](docs/agents/reference/metabase-orchestrator.md)
+- [multi-agent-orchestrator](docs/agents/reference/multi-agent-orchestrator.md)
+- [openapi-orchestrator](docs/agents/reference/openapi-orchestrator.md)
+- [pdf-orchestrator](docs/agents/reference/pdf-orchestrator.md)
+- [progress-orchestrator](docs/agents/reference/progress-orchestrator.md)
+- [public-interface-orchestrator](docs/agents/reference/public-interface-orchestrator.md)
+- [research-orchestrator](docs/agents/reference/research-orchestrator.md)
+- [schema-orchestrator](docs/agents/reference/schema-orchestrator.md)
+- [sonarqube-orchestrator](docs/agents/reference/sonarqube-orchestrator.md)
+- [spec-orchestrator](docs/agents/reference/spec-orchestrator.md)
+- [structure-orchestrator](docs/agents/reference/structure-orchestrator.md)
+- [tasks-orchestrator](docs/agents/reference/tasks-orchestrator.md)
+
+## Orchestrator Reference Docs (Tiếng Việt)
+
+- [orchestrator-index](docs/vi/agents/reference/orchestrator-index.md): Chỉ mục điều phối viên
+- [research-orchestrator](docs/vi/agents/reference/research-orchestrator.md): Điều phối viên nghiên cứu
+- [memory-orchestrator](docs/vi/agents/reference/memory-orchestrator.md): Điều phối viên bộ nhớ
+- [spec-orchestrator](docs/vi/agents/reference/spec-orchestrator.md): Điều phối viên spec
+- [tasks-orchestrator](docs/vi/agents/reference/tasks-orchestrator.md): Điều phối viên tác vụ
+- [progress-orchestrator](docs/vi/agents/reference/progress-orchestrator.md): Điều phối viên tiến độ
+- [analytics-pipeline-workflow](./docs/agents/how-to/orchestrator-workflows/analytics-pipeline-workflow.md): Elastic → Grafana → Metabase analytics pipeline
+- [code-quality-gate-workflow](./docs/agents/how-to/orchestrator-workflows/code-quality-gate-workflow.md): SonarQube → Hexagonal → Structure → Circular Dependency quality gate
+- [document-delivery-workflow](./docs/agents/how-to/orchestrator-workflows/document-delivery-workflow.md): Markdown → Diagrams → PDF → Confluence delivery pipeline
+- [cli-commands](./docs/agents/reference/cli-commands.md): Extended CLI command catalog and operator patterns.
+- [confluence-sync](./docs/agents/reference/confluence-sync.md): Sync docs to Confluence (WIP).
+- [ecosystem-daily-report](./docs/agents/reference/ecosystem-daily-report.md): Reference for `vds-cli docs ecosystem-report`.
+- [env-git-helper](./docs/agents/reference/env-git-helper.md): Reference for `vds-cli env git-helper` lifecycle.
+- [lint-cli](./docs/agents/reference/lint-cli.md): Reference for `vds-cli lint cli` compliance diagnostics.
+- [skills-commands](./docs/agents/reference/skills-commands.md): Reference for `vds-cli skills` subcommands.
+- [infrastructure-v2.15](./docs/agents/reference/infrastructure-v2.15.md): Infrastructure v2.15.x operator reference (PgBouncer, healthchecks, container cycling).
+- [ci-workflows](./docs/agents/reference/ci-workflows.md): CI/CD workflow operational contract.
+- [Phase 220 spec health audit](../../.gpt-5.4/specs/vds-ai-memory/research/phase220-spec-health-audit/): Cross-spec dependency analysis.
+- [alignment-phase179-report](docs/agents/reference/alignment-phase179-report.md): Phase 179 alignment research (doc↔code↔Confluence).
+- [confluence-sync-target](./docs/agents/reference/confluence-sync-target.md): Confluence sync target doc with live page inventory.
+- [apply-phase3-migration](./docs/agents/how-to/apply-phase3-migration.md)

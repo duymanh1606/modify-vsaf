@@ -1,0 +1,80 @@
+name: automation-test
+description: "RF automation pipeline — Domain Docs → Test Scenarios → Test Strategy → Automate (Web/Android/iOS/API) → CI/CD"
+nodes:
+  - id: docs
+    command: autotest-project-docs
+    workspace: false
+
+  - id: scenarios
+    command: autotest-scenarios
+    depends_on: [docs]
+    workspace: false
+
+  - id: strategy
+    command: autotest-strategy
+    depends_on: [scenarios]
+    workspace: false
+
+  - id: platform-select
+    prompt: |
+      Feature/request: $ARGUMENTS
+
+      Output of node "strategy" (automation strategy doc it produced/updated):
+      $strategy.output
+
+      Xác định NỀN TẢNG automation cho feature này: web | android | ios | api.
+      - Nếu $ARGUMENTS nêu rõ nền tảng (vd chứa "web", "android", "ios", "api",
+        tên app mobile, hay URL web) → dùng luôn, không cần hỏi.
+      - Nếu strategy doc ở trên đã nêu rõ platform/phạm vi automation → dùng
+        theo đó.
+      - Nếu vẫn không rõ → hỏi thẳng người dùng bằng một câu hỏi duy nhất,
+        liệt kê 4 lựa chọn (web/android/ios/api), và chờ trả lời trước khi
+        tiếp tục. KHÔNG tự đoán khi thực sự mơ hồ.
+      - Nếu feature cần automate trên nhiều nền tảng cùng lúc, hỏi người dùng
+        chọn 1 nền tảng để chạy trước (workflow này chạy tuần tự từng nền
+        tảng một; chạy lại workflow cho nền tảng còn lại sau).
+
+      Kết thúc câu trả lời bằng đúng một khối JSON (không thêm chữ nào khác
+      sau khối này):
+      ```json
+      {"platform": "<web|android|ios|api>"}
+      ```
+    depends_on: [strategy]
+    workspace: false
+    output_format:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [web, android, ios, api]
+      required: [platform]
+
+  - id: automate-web
+    command: autotest-web
+    depends_on: [platform-select]
+    when: "$platform-select.output.platform == 'web'"
+    workspace: false
+
+  - id: automate-android
+    command: autotest-android
+    depends_on: [platform-select]
+    when: "$platform-select.output.platform == 'android'"
+    workspace: false
+
+  - id: automate-ios
+    command: autotest-ios
+    depends_on: [platform-select]
+    when: "$platform-select.output.platform == 'ios'"
+    workspace: false
+
+  - id: automate-api
+    command: autotest-api
+    depends_on: [platform-select]
+    when: "$platform-select.output.platform == 'api'"
+    workspace: false
+
+  - id: cicd
+    command: autotest-jenkins
+    depends_on: [automate-web, automate-android, automate-ios, automate-api]
+    trigger_rule: one_success
+    workspace: false

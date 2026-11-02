@@ -1,0 +1,87 @@
+[project]
+name = "vds-pdf-orchestrator"
+version = "0.1.0"
+description = "PDF manipulation orchestrator for VDS platform with security-first approach"
+readme = "README.md"
+requires-python = ">=3.13"
+# Pruned 2026-04-25: only the 8 deps that are actually imported in src/ are
+# kept. Removed 33 phantom deps (presidio + spaCy stack, pymupdf, weasyprint
+# extras, etc.) — see git log for the full diff. The largest impact: drops
+# stpyv8 (V8 bindings, no arm64 wheels for cp313/cp314) which had blocked
+# the pdf and audit container builds on Apple Silicon.
+dependencies = [
+    "vds-cli-common",
+    "markdown>=3.10",          # markdown_to_html in cli
+    "pydantic>=2.12.5",        # config models
+    "pydantic-settings>=2.12.0", # BaseSettings for config
+    "pypdf>=6.4.0",            # PdfReader/PdfWriter (PyPDF2 successor)
+    "reportlab>=4.4.5",        # canvas + pdfmetrics + pagesizes
+    "rich>=14.3.3",            # Console + Table for CLI output
+    "typer>=0.24.1",           # CLI framework
+    "weasyprint>=66.0",        # HTML→PDF conversion
+]
+
+[project.optional-dependencies]
+# Re-add deps here when actually importing them. Examples:
+#   pii = ["presidio-analyzer", "presidio-anonymizer", "spacy", "en-core-web-lg"]
+#   ocr = ["pdf2image", "pillow"]
+#   advanced-extraction = ["pdfplumber", "pymupdf", "pymupdf4llm"]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.11",
+    "mypy>=1.18.2",
+]
+
+[project.scripts]
+vds-pdf = "vds_pdf_orchestrator.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vds_pdf_orchestrator"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "security: marks tests as security-focused tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "pytest-html>=4.1.1",
+    "ruff>=0.14.11",
+    "yamllint>=1.37.1",
+    "black>=26.1.0",
+    "mypy>=1.19.1",
+]
+
+[tool.uv.sources]
+vds-cli-common = { workspace = true }

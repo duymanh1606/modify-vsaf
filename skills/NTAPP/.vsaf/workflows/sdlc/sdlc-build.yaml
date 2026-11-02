@@ -1,0 +1,18 @@
+name: sdlc-build
+description: "Sub-flow: Implement → Test Gate — TDD code + automated test verification"
+
+nodes:
+  - id: implement
+    description: "Implement: TDD implementation per vertical slice"
+    command: sdlc-implement
+    depends_on: []
+
+  - id: test-gate
+    description: "Test Gate: run automated tests to verify implementation"
+    bash: |
+      cd $WORKSPACE && npm test 2>&1
+    depends_on: [implement]
+    loop:
+      on_fail: implement
+      max_retries: 3
+      inject_error: true

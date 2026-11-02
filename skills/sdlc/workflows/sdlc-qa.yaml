@@ -1,0 +1,17 @@
+name: sdlc-qa
+description: "Sub-flow: Review → Feature Complete → Ship — quality gate + knowledge update + deploy"
+
+nodes:
+  - id: review
+    command: sdlc-review
+    workspace: false
+
+  - id: complete
+    command: sdlc-feature-complete
+    depends_on: [review]
+    workspace: false
+
+  - id: ship
+    command: sdlc-ship
+    depends_on: [complete]
+    workspace: false

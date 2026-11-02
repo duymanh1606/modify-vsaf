@@ -1,0 +1,54 @@
+pairs:
+  - doc: "docs/phases/CHANGELOG.md"
+    source: "AGENTS.md"
+    max_lag_days: 14
+  - doc: "docs/agents/reference/cli-commands.md"
+    source: "vds_cli/src/vds_cli/cli.py"
+    max_lag_days: 7
+  - doc: "llms.txt"
+    source: "AGENTS.md"
+    max_lag_days: 7
+  - doc: "docs/vi/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md"
+    source: "docs/agents/how-to/install-and-bootstrap-who-scripts-and-skills.md"
+    max_lag_days: 30
+  - doc: "docs/vi/agents/tutorials/zero-to-productive-developer.md"
+    source: "docs/agents/tutorials/zero-to-productive-developer.md"
+    max_lag_days: 30
+  - doc: "docs/vi/agents/reference/agent-operational-contract.md"
+    source: "docs/agents/reference/agent-operational-contract.md"
+  - doc: "ECOSYSTEM-DOCS.md"
+    source: "AGENTS.md"
+    max_lag_days: 14
+  - doc: "ECOSYSTEM-CHANGELOG.md"
+    source: "AGENTS.md"
+    max_lag_days: 14
+  - doc: "docs/agents/reference/system-requirements.md"
+    source: "docs/agents/reference/configuration-reference.md"
+    max_lag_days: 14
+  - doc: "docs/agents/reference/common-errors.md"
+    source: "docs/agents/how-to/troubleshooting-guide.md"
+    max_lag_days: 7
+  - doc: "docs/agents/how-to/contribute-new-orchestrator.md"
+    source: "AGENTS.md"
+    max_lag_days: 30
+  - doc: "docs/agents/tutorials/feature-progression-guide.md"
+    source: "vds_cli/src/vds_cli/cli.py"
+    max_lag_days: 14
+  - doc: "docs/agents/reference/orchestrator-comparison-matrix.md"
+    source: "vds_cli/src/vds_cli/cli.py"
+    max_lag_days: 14
+  - doc: "docs/agents/explanation/whats-new.md"
+    source: "ECOSYSTEM-CHANGELOG.md"
+    max_lag_days: 7
+  - doc: "docs/agents/explanation/development-roadmap.md"
+    source: "docs/phases/CHANGELOG.md"
+    max_lag_days: 14
+  - doc: "docs/agents/reference/orchestrator-architecture.md"
+    source: "vds_cli/src/vds_cli/cli.py"
+    max_lag_days: 14
+  - doc: "docs/agents/explanation/data-flow.md"
+    source: "docs/agents/explanation/system-architecture.md"
+    max_lag_days: 14
+  - doc: "docs/agents/tutorials/quick-start.md"
+    source: "docs/agents/explanation/who-ecosystem-introduction.md"
+    max_lag_days: 14

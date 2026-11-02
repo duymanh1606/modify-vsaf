@@ -1,0 +1,118 @@
+{
+  "total": {
+    "input": 989270327,
+    "output": 13771757
+  },
+  "_meta": {
+    "source": "claude-code session jsonl",
+    "files": 84,
+    "assistant_messages": 9605,
+    "session_date_min": "2026-06-05",
+    "session_date_max": "2026-07-07",
+    "breakdown_raw": {
+      "input_tokens": 7397612,
+      "cache_creation_input_tokens": 51524596,
+      "cache_read_input_tokens": 930348119,
+      "output_tokens": 13771757
+    },
+    "slice_plan_units": 0,
+    "techspec_split": {},
+    "by_model": {
+      "claude-opus-4-8": {
+        "input": 968975376,
+        "output": 13542583
+      },
+      "claude-haiku-4-5-20251001": {
+        "input": 17430967,
+        "output": 103990
+      },
+      "<synthetic>": {
+        "input": 0,
+        "output": 0
+      },
+      "claude-sonnet-4-6": {
+        "input": 2863984,
+        "output": 125184
+      }
+    },
+    "by_model_breakdown": {
+      "claude-opus-4-8": {
+        "input_tokens": 7327678,
+        "cache_creation_input_tokens": 49151504,
+        "cache_read_input_tokens": 912496194,
+        "output_tokens": 13542583
+      },
+      "claude-haiku-4-5-20251001": {
+        "input_tokens": 69846,
+        "cache_creation_input_tokens": 1973376,
+        "cache_read_input_tokens": 15387745,
+        "output_tokens": 103990
+      },
+      "<synthetic>": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 0
+      },
+      "claude-sonnet-4-6": {
+        "input_tokens": 88,
+        "cache_creation_input_tokens": 399716,
+        "cache_read_input_tokens": 2464180,
+        "output_tokens": 125184
+      }
+    },
+    "by_slice_model": {
+      "_unattributed": {
+        "claude-opus-4-8": {
+          "input": 968975376,
+          "output": 13542583
+        },
+        "claude-haiku-4-5-20251001": {
+          "input": 17430967,
+          "output": 103990
+        },
+        "<synthetic>": {
+          "input": 0,
+          "output": 0
+        },
+        "claude-sonnet-4-6": {
+          "input": 2863984,
+          "output": 125184
+        }
+      }
+    },
+    "by_stage_model": {
+      "_unattributed": {
+        "claude-opus-4-8": {
+          "input": 968975376,
+          "output": 13542583
+        },
+        "claude-haiku-4-5-20251001": {
+          "input": 17430967,
+          "output": 103990
+        },
+        "<synthetic>": {
+          "input": 0,
+          "output": 0
+        },
+        "claude-sonnet-4-6": {
+          "input": 2863984,
+          "output": 125184
+        }
+      }
+    },
+    "note": "input = input_tokens + cache_creation + cache_read; output = output_tokens"
+  },
+  "by_slice": {
+    "_unattributed": {
+      "input": 989270327,
+      "output": 13771757
+    }
+  },
+  "by_stage": {
+    "_unattributed": {
+      "input": 989270327,
+      "output": 13771757
+    }
+  }
+}

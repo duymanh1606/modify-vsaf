@@ -1,0 +1,37 @@
+# Fixture — hop dong noi suy $ARGUMENTS trong bash node (engine variable-resolver, mode='bash').
+# Engine SHELL-ESCAPE $ARGUMENTS truoc khi thay -> template TUYET DOI khong duoc tu boc quote.
+#   dung:  args=$ARGUMENTS      -> args='<raw>'          (quote cua engine, shell tu boc)
+#   sai:   args="$ARGUMENTS"    -> args="'<raw>'"        -> gia tri MANG THEO dau ' -> xargs "unterminated quote"
+# Fixture in ra ca 2 dang de assert; hooks/tests/run.sh kiem chuoi BARE-OK / QUOTED-LEAK.
+name: args-quoting-fixture
+nodes:
+  - id: probe
+    description: "In ra ket qua parse $ARGUMENTS theo 2 cach (bare vs tu boc quote)"
+    bash: |
+      bare=$ARGUMENTS
+      quoted="$ARGUMENTS"
+      uid=$(printf '%s' "$bare" | sed 's/|.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+      intent=$(printf '%s' "$bare" | sed 's/^[^|]*//; s/^|//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+      echo "BARE=[$bare]"
+      echo "QUOTED=[$quoted]"
+      echo "UID=[$uid]"
+      echo "INTENT=[$intent]"
+      case "$quoted" in
+        *"'"*) echo "QUOTED-LEAK (engine dang escape -> template TUYET DOI khong tu boc quote)" ;;
+        *)     echo "QUOTED-CLEAN (engine khong escape o ban nay)" ;;
+      esac
+      case "$uid" in
+        BE-CTX-01) echo "BARE-OK" ;;
+        *)         echo "BARE-FAIL: parse bare + sed khong ra unit_id -> moi bash node doc args dang VO"; exit 1 ;;
+      esac
+    workspace: false
+
+  - id: probe-ws
+    description: "Bash node KHONG co workspace:false -> cwd la worktree fork cua SPEC repo; $WORKSPACE khong ton tai"
+    bash: |
+      echo "PWD=[$PWD]"
+      echo "WORKSPACE=[${WORKSPACE:-<unset>}]"
+      case "$PWD" in
+        *"/.vsaf/worktrees/"*) echo "CWD-IS-WORKTREE" ;;
+        *)                     echo "CWD-IS-PROJECT" ;;
+      esac

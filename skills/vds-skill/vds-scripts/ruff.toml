@@ -1,0 +1,100 @@
+# Ruff workspace-level configuration
+# Supersedes [tool.ruff] in pyproject.toml — keep both in sync.
+
+line-length = 120
+target-version = "py314"
+
+# Exclude intentional non-compliant files
+exclude = [
+    "**/tests/fixtures/python-noncompliant/**",
+    "**/.openspace/**",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "PL",  # Pylint
+    "RUF", # Ruff-specific
+]
+ignore = [
+    "E501",      # Line too long (formatter handles this)
+    "PLR0913",   # Too many arguments
+    "PLR2004",   # Magic value comparison
+    "PLC0415",   # Allow lazy imports
+    "ARG002",    # Allow unused args in interfaces
+    "TC003",     # Allow runtime typing imports
+    "RUF001",    # Allow Unicode symbols
+    "SIM117",    # Allow nested with statements
+    "B008",      # Typer/FastAPI idiomatic DI defaults
+]
+
+[lint.per-file-ignores]
+# CLI dispatch files naturally have high branching/complexity
+"audit_orchestrator/src/vds_audit_orchestrator/workflow_cmds.py" = ["PLR0911", "PLR0912", "PLR0915"]
+# Typer/FastAPI dependency-injection and CLI defaults are idiomatic
+"multi_agent_orchestrator/src/vds_multi_agent_orchestrator/api/main.py" = ["B008"]
+# B904 in CLI files is typically typer.BadParameter/typer.Exit — not chain-worthy
+"elastic_orchestrator/src/vds_elastic_orchestrator/cli.py" = ["B904"]
+"grafana_orchestrator/src/vds_grafana_orchestrator/cli.py" = ["B904"]
+"sonarqube_orchestrator/src/vds_sonarqube_orchestrator/cli.py" = ["B904"]
+# Phase 229 baseline: pydantic models appended mid-module (SQLAlchemy models first,
+# Pydantic response models at bottom — circular import avoidance pattern);
+# AsyncSession import and get_db signature are intentional
+"**/service/models/database.py" = ["E402", "TC002", "UP043"]
+# Phase 228+229 baseline: health_check.py intentionally imports from services/
+# after function definitions to avoid circular import chain; large health-check methods
+# are inherent to comprehensive triple-layer monitoring (PLR thresholds exceeded intentionally)
+"**/service/services/health_check.py" = ["E402", "ERA001", "PLR0912", "PLR0915", "RUF010"]
+# Pre-existing (Phase 220 baseline): typer accepts --dry-run flag as `dry_run` param
+# (aliased via Annotated[Option], Typer injects the flag name separately)
+"**/cli.py" = ["ARG001", "I001", "PLR0912", "PLR0915"]
+# Pre-existing (Phase 228 baseline): client.py has minor import/sort deviations
+"**/vds_memory_orchestrator/client.py" = ["I001", "RUF022"]
+# Pre-existing (Phase 179 baseline): __init__.py __all__ is intentionally organized
+# by section (Base, DB models, Auth, Enums, Pydantic, Request/Response) with
+# comments; RUF022 alphabetical-only sort conflicts with section grouping
+"**/service/models/__init__.py" = ["RUF022"]
+# Pre-existing (Phase 229 baseline): load_evolution_settings has complex nested conditional
+# parsing with many branches (intentional: per-section fallback chain)
+"**/service/services/memory_evolution/config_loader.py" = ["PLR0912", "PLR0915"]
+# Pre-existing (Phase 220 baseline): _promote_memory_to_mem0 is a long adapter-calling
+# method that handles null-adapter, fallback, retry, and error paths
+"**/service/services/memory_evolution/processor.py" = ["PLR0912", "PLR0915"]
+# Pre-existing (Phase 229 baseline): consolidation_executor.py has commented-out code
+# (reserved import for future LLM-based consolidation)
+"**/service/services/memory_evolution/consolidation_executor.py" = ["ERA001"]
+# Pre-existing (Phase 229 baseline): tracker.py record_event has many returns
+# (intentional: one per event type with error/edge-case branches)
+"**/service/services/memory_evolution/tracker.py" = ["PLR0911"]
+# Math symbols in scheduler test docstrings are intentional
+"*/scheduler_orchestrator/tests/**" = ["RUF002"]
+# PDF orchestrator ruff_rules.py is a self-test utility, not production code
+"pdf_orchestrator/.ruff_rules.py" = ["SIM102"]
+# Test files intentionally use non-standard patterns
+"*/tests/**" = [
+    "ARG001", "ARG003", "ARG005", "B904",
+    "E402",   # module-level import at non-top
+    "F401",   # unused import
+    "F811",   # redefinition of unused
+    "SIM102",  # nested if
+    "SIM117",  # nested with
+    "F821",   # undefined name (test fixtures)
+    "F601",   # duplicate key in dict
+    "E741",   # ambiguous variable name
+    "F541",   # f-string without placeholder
+    "B017",   # bare except in test
+    "F841",   # unused local variable
+]
+# Temp scripts are not production code
+"scripts/generate_completion_report.py" = ["ALL"]

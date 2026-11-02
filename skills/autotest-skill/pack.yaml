@@ -1,0 +1,38 @@
+name: autotest-skill
+version: 1.0.0
+description: Robot Framework automation test — dùng độc lập, không phụ thuộc SDLC
+author: "@ngocsangairvds/vsaf"
+# Bản engine tối thiểu. Từ 6.15.0 engine mới biết kéo flow từ repo vsaf-workflow
+# và chạy file cài của chính flow. Phải để trong ngoặc kép — viết trần thì YAML đọc
+# dấu > theo cú pháp khác và gãy ngay lúc đọc file.
+requiresEngine: ">=6.15.0"
+
+
+# Nguồn: AUT/rf-agentskills @ master (45c6d95bc08, 11/08/2026), lấy nguyên văn.
+# Đồng bộ lại: node scripts/fetch-autotest-upstream.mjs
+# So lệch với bản trong pack sdlc: node scripts/autotest-drift-report.mjs
+
+# Khoảng trống upstream đã biết: autotest-web/android/ios thiếu `user-invocable`
+# (cùng hình dạng với nhóm user-facing nên khả năng cao là sót). KHÔNG tự vá —
+# lối vào chính là workflow automation-test, gọi qua node `command:` nên không ảnh hưởng.
+
+# TẤT CẢ nằm ở bundled — các skill gọi chéo nhau bằng đường dẫn cứng
+# .claude/skills/autotest-<x>/, thêm tiền tố là gãy hết tham chiếu.
+skills: []
+
+bundled:
+  - autotest-project-docs
+  - autotest-scenarios
+  - autotest-strategy
+  - autotest-web
+  - autotest-web-best-practices
+  - autotest-api
+  - autotest-api-best-practices
+  - autotest-android
+  - autotest-android-best-practices
+  - autotest-ios
+  - autotest-ios-best-practices
+  - autotest-db
+  - autotest-results
+  - autotest-mcp-assist
+  - autotest-jenkins

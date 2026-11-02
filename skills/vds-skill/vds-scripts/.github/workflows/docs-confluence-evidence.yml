@@ -1,0 +1,170 @@
+name: Docs Confluence Evidence Log
+
+# Daily validator evidence log for Confluence auto-sync runtime proof.
+# Captures validator pass/fail + quality-score snapshot to docs/.confluence-evidence/
+# so reviewers can see that docs health is being checked outside of PR gates.
+#
+# NOTE: This is VALIDATION-only — it does NOT invoke Confluence sync (which requires
+# secrets and could mutate pages). The gap closure is about having runtime evidence,
+# not about pushing pages.
+#
+# SECURITY: This workflow does NOT consume untrusted GitHub event inputs
+# (issue titles, PR bodies, commit messages, branch names, etc.). It is triggered
+# only by `schedule` and `workflow_dispatch`. All shell interpolations use
+# step outputs or explicit env vars, never `github.event.*`.
+
+on:
+  schedule:
+    # Daily at 03:00 UTC — off-hours for most contributors.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+# Commit-back is gated. Set ALLOW_EVIDENCE_PUSH=true in repo/org variables to enable
+# writing the dated evidence file back to the repo. Leave false if the org forbids
+# scheduled workflows from pushing to the default branch.
+env:
+  ALLOW_EVIDENCE_PUSH: 'false'
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync dependencies
+        run: uv sync --all-packages
+
+      - name: Compute evidence date
+        id: date
+        run: echo "today=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure evidence directory exists
+        run: mkdir -p docs/.confluence-evidence
+
+      - name: Run docs validate (evidence step)
+        id: validate
+        run: |
+          uv run --project vds_cli python -c "
+          import json, sys
+          from pathlib import Path
+          from vds_cli.docs_cmd import validate_docs
+          issues = validate_docs(
+              Path('.'),
+              check_vi=True,
+              check_diataxis=True,
+              cross_repo=True,
+              check_orchestrators=True,
+              check_skills=True,
+          )
+          status = 'pass' if not issues else 'fail'
+          payload = {
+              'status': status,
+              'issue_count': len(issues),
+              'issues': [
+                  {'check': getattr(i, 'check', ''), 'message': getattr(i, 'message', str(i))}
+                  for i in issues[:50]
+              ],
+          }
+          Path('validate-result.json').write_text(json.dumps(payload, indent=2))
+          print(f'validator status: {status} ({len(issues)} issues)')
+          # Do not fail the workflow on validator issues — we want the evidence recorded.
+          " || true
+
+      - name: Run docs quality-score (evidence step)
+        id: score
+        run: |
+          uv run --project vds_cli python -c "
+          import json
+          from pathlib import Path
+          from vds_cli.docs_cmd import score_all_docs
+          result = score_all_docs(Path('.'))
+          Path('quality-score.json').write_text(json.dumps(result, indent=2))
+          print(f\"quality average: {result.get('average', 'n/a')}\")
+          " || true
+
+      - name: Assemble dated evidence snapshot
+        id: assemble
+        env:
+          EVIDENCE_DATE: ${{ steps.date.outputs.today }}
+        run: |
+          uv run --project vds_cli python -c "
+          import json, os
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          today = os.environ['EVIDENCE_DATE']
+          validate = json.loads(Path('validate-result.json').read_text()) if Path('validate-result.json').exists() else {'status': 'error', 'issue_count': None, 'issues': []}
+          score = json.loads(Path('quality-score.json').read_text()) if Path('quality-score.json').exists() else {'average': None, 'docs': {}}
+
+          snapshot = {
+              'generated_at': datetime.now(timezone.utc).isoformat(),
+              'date': today,
+              'workflow': 'docs-confluence-evidence',
+              'validate': validate,
+              'quality_score': score,
+          }
+          out = Path(f'docs/.confluence-evidence/{today}.json')
+          out.write_text(json.dumps(snapshot, indent=2))
+          print(f'wrote {out}')
+          "
+
+      - name: Write step summary
+        env:
+          EVIDENCE_DATE: ${{ steps.date.outputs.today }}
+        run: |
+          uv run --project vds_cli python -c "
+          import json, os
+          from pathlib import Path
+
+          today = os.environ['EVIDENCE_DATE']
+          snap = json.loads(Path(f'docs/.confluence-evidence/{today}.json').read_text())
+          validate = snap.get('validate', {})
+          score = snap.get('quality_score', {})
+          lines = [
+              f'# Docs Confluence Evidence — {today}',
+              '',
+              f\"- Validator status: **{validate.get('status', 'unknown')}**\",
+              f\"- Validator issue count: **{validate.get('issue_count')}**\",
+              f\"- Quality-score average: **{score.get('average', 'n/a')}**\",
+              f\"- Snapshot: \`docs/.confluence-evidence/{today}.json\`\",
+          ]
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              Path(summary_path).write_text('\n'.join(lines) + '\n')
+          print('\n'.join(lines))
+          "
+
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-confluence-evidence-${{ steps.date.outputs.today }}
+          path: docs/.confluence-evidence/${{ steps.date.outputs.today }}.json
+          retention-days: 90
+
+      # Commit-back step. Disabled by default because scheduled workflows pushing
+      # to the default branch is org-policy-dependent. To enable:
+      #   1. Add repository variable ALLOW_EVIDENCE_PUSH=true, OR
+      #   2. Edit the top-level env block above.
+      # The workflow token needs `contents: write` (already set in permissions).
+      - name: Commit evidence snapshot
+        if: env.ALLOW_EVIDENCE_PUSH == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/.confluence-evidence/
+          if git diff --cached --quiet; then
+            echo "No evidence changes to commit."
+          else
+            git commit -m "chore(docs): daily Confluence evidence snapshot $(date -u +%Y-%m-%d)"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi

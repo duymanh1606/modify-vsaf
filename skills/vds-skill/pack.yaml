@@ -1,0 +1,29 @@
+name: vds-skill
+version: 1.0.0
+description: Viettel VDS automation skills — opt-in pack wrapping vds-cli for Confluence/Jira/Bitbucket integration with SDLC flow
+author: "@ngocsangairvds/vsaf"
+# Bản engine tối thiểu. Từ 6.15.0 engine mới biết kéo flow từ repo vsaf-workflow
+# và chạy file cài của chính flow. Phải để trong ngoặc kép — viết trần thì YAML đọc
+# dấu > theo cú pháp khác và gãy ngay lúc đọc file.
+requiresEngine: ">=6.15.0"
+
+
+# Skills deployed WITH prefix: /vds-skill-<name>
+skills:
+  # Knowledge sync
+  - pull                      # /vds-skill-pull — git pull + stale index detection
+
+  # Discovery enrichment (helper for Phase 1)
+  - search-confluence         # /vds-skill-search-confluence — search Confluence + Jira for historical context
+
+  # PRD/SRS publication (helper for Phase 2/4)
+  - push-prd                  # /vds-skill-push-prd — push PRD to Confluence via vds-cli
+  - push-srs                  # /vds-skill-push-srs — push SRS to Confluence via vds-cli + link PRD
+
+  # Epic/PR creation (helper for Phase 2/9)
+  - create-jira-epic          # /vds-skill-create-jira-epic — create Jira Epic from PRD
+  - create-bitbucket-pr       # /vds-skill-create-bitbucket-pr — create Bitbucket PR after ship
+
+# Bundled external skills — deployed WITHOUT prefix (as-is)
+bundled:
+  - vds-scripts-skill         # /vds-scripts-skill — platform-routing skill (imported from /Downloads/vds-scripts/)

@@ -1,0 +1,232 @@
+# Workflow 7 — ad-hoc-per-unit (Lane 4)
+# Muc tieu: spec-build-demo 1 unit doc lap, skip Stage 2b (no slice plan). PoC <= 3 unit.
+# Stage 3a (techspec) CO node, nhung BE-only + idempotent: module cu da co techspec -> SKIP;
+# module moi/PoC chua co -> sinh truoc dd (feature-design step-01 HARD-require techspec cho BE feature_id).
+# Chay: vsaf run NTAPP/ad-hoc-per-unit --args "<intent | file-path | unit_id>"
+#
+# State: architecture-design resolve input -> ghi unit_id chinh vao NTAPP-output/.current-unit-id;
+# cac node sau doc file nay (KHONG dung $ARGUMENTS truc tiep cho duong dan file).
+# Unit phu (neu intent ra nhieu unit) -> .pending-units; demo-unit nhac chay lai per unit.
+
+name: ad-hoc-per-unit
+description: "Per-unit loop bo qua Stage 2b. --args <intent | file-path | unit_id>"
+# model = DEFAULT model cho AI node. Engine emit hint qua needs_ai.nodes[].model; glue
+# /NTAPP-vsaf-run dispatch moi node thanh 1 subagent kem --model = hint. Default opus
+# (work nang); node "re" (decision/build-apply/summary) override `model: sonnet`.
+model: opus
+nodes:
+  - id: architecture-design
+    description: "Append mode — resolve input thanh unit_id, append vao WBS, ghi .current-unit-id"
+    prompt: |
+      WBS = NTAPP-output/Stage_2_Architecture/project_wbs.md (markdown table; ID o COT DAU).
+      Input = "$ARGUMENTS". Phan loai roi resolve unit_id:
+        - Duong dan file (/, ./, hoac *.md/.yaml/.json) -> doc file lay intent.
+        - unit_id co san (pattern CHU-HOA + so, vd BE-BMS-01 / SCR-HOME):
+            kiem tra EXACT-MATCH cot dau WBS (KHONG substring — `BE-BMS-1` != `BE-BMS-10`):
+              co dong "| <unit_id> |" -> ghi vao .current-unit-id, KET THUC node (skip append).
+              khong -> dung lam unit_id_candidate.
+        - Con lai -> free-text intent.
+
+      Invoke: Skill(skill="NTAPP-architecture-design", args="--append") — bat buoc, khong tu them dong vao WBS.
+      Che do APPEND (voi intent / candidate moi):
+        phan tich intent -> dat unit_id theo convention WBS (FE: SCR-/WGT-; BE: prefix khac;
+        numbering tiep theo trong module) -> append WBS + Function Decomposition Tree.
+        Giu nguyen HLD / Module 0 / cac unit cu — append-only, KHONG thiet ke lai.
+
+      SINGLE-UNIT (1 unit / lan chay): neu intent resolve ra NHIEU unit -> append HET vao WBS,
+      nhung chi build 1 unit CHINH (cot loi nhat) trong lan nay.
+
+      Output:
+        - unit_id chinh -> NTAPP-output/.current-unit-id (1 dong, khong newline thua; mkdir -p).
+        - unit phu chua build -> NTAPP-output/.pending-units, moi dong "<unit_id> | <module> | <mo ta>"
+          (khong co unit phu -> ghi file rong / xoa file cu).
+        - Bao cao: unit_id chinh, module, nguon input; va list unit phu (neu co).
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-architecture-design | yes|no|skipped | <ly do neu no/skipped>
+      (unit_id da co trong WBS -> skipped, day la duong di binh thuong cua Lane 4 tren unit cu).
+    workspace: false
+
+  - id: techspec
+    description: "Stage 3a — module techspec (BE-only hard-req; idempotent SKIP neu module da co)"
+    # Lane 4 = module cu -> node nay THUONG idempotent-SKIP (techspec sinh o run/slice truoc). Bit lo hong khi
+    # module CHUA tung co techspec (PoC / module moi): feature-design step-01 HARD-require {module}_techspec.md cho
+    # feature_id (BE), se HALT neu thieu -> sinh truoc dd de chay lien mach headless.
+    # FE (SCR-*/WGT-*) SKIP: techspec chi optional cross-check cho FE; feature-design dung UX Spec / HLD-fallback
+    # (project_wbs.md) — Lane 4 khong co node ux-design.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      FE unit (prefix SCR-*/WGT-*) -> SKIP (techspec chi optional cross-check cho FE).
+      BE unit -> resolve MODULE chua <unit_id> tu WBS (NTAPP-output/Stage_2_Architecture/project_wbs.md,
+      cot module cua dong "| <unit_id> |"). TechSpec MODULE-scoped (cover NGUYEN module, KHONG per-unit):
+        NTAPP-output/Stage_3_Specs/techspec/<MODULE>_techspec.md DA ton tai -> SKIP (idempotent; module cu).
+        Chua -> Invoke: Skill(skill="NTAPP-technical-design", args="module_name=MODULE") — bat buoc, khong tu
+        viet techspec. Skill audit FULL module tu WBS, khong gioi han o unit <unit_id>.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-technical-design | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [architecture-design]
+    workspace: false
+
+  - id: dd
+    description: "Stage 4a — Detailed Design (idempotent)"
+    # hook (post): Hook 4 stage4a-completeness (DD co §1, §2.2, §3.2, §5.2).
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      DD da co (NTAPP-output/Stage_4_Design/detailed_design/<unit_id>_detailed_design.md) -> SKIP.
+      Chua -> Invoke: Skill(skill="NTAPP-feature-design", args="unit_id=<unit_id>") — bat buoc, khong tu soan DD.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-feature-design | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [techspec]
+    workspace: false
+
+  - id: ui-schema
+    description: "Stage 4b — ui_schema (FE-only; idempotent)"
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      KHONG phai FE (prefix khac SCR-*/WGT-*) -> skip.
+      ui_schema da co (NTAPP-output/Stage_4_Design/ui_schema/ui_schema_<unit_id>.json) -> SKIP.
+      Chua -> Invoke: Skill(skill="NTAPP-ui-generation", args="id=<unit_id>") — bat buoc, khong tu viet ui_schema JSON.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ui-generation | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [dd]
+    workspace: false
+
+  - id: ds-delta-decision
+    description: "Decision — FE-only; [NEW] rong -> skip ds-build; co entry -> cho DSO approve"
+    model: sonnet   # route theo [NEW]
+    # hook: Hook 5 ds-delta-router (RECORDER) + Hook 5b ds-build-approval-gate (chan neu pending).
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      KHONG phai FE (prefix khac SCR-*/WGT-*) -> skip.
+      Doc proposed_ds_updates.md cua unit: design-system/feature_deltas/<unit_id>/ hoac (multi-DS)
+      design-system/*/feature_deltas/<unit_id>/ — ID global-unique nen toi da 1 hit:
+        [NEW] rong -> "skip ds-build".
+        co [NEW] -> Hook 5 da ghi ds_delta_decision.md:
+          auto-approve OFF (default): pending -> cho DSO sua `status: approved` (Hook 5b chan ds-build neu chua).
+          auto-approve ON: auto_approved -> di tiep.
+    depends_on: [ui-schema]
+    workspace: false
+
+  - id: ds-build
+    description: "Stage 4b — build component (FE-only; skip neu khong co [NEW]; idempotent)"
+    model: sonnet   # apply delta da approve (deterministic). Nang opus neu adapter phuc tap.
+    # hook (post): Hook 6 build-component-verify (build_report.md + master_token.json + runtime token path).
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      KHONG phai FE (prefix khac SCR-*/WGT-*) -> skip. [NEW] rong -> skip.
+      Co [NEW] + ds_delta_decision.md = approved/auto_approved -> Invoke: Skill(skill="NTAPP-ds-build-component",
+      args="id=<unit_id>") — bat buoc, khong tu scaffold component hay sua master_token.json bang tay.
+      Ket thuc bao cao bang: SKILL_INVOKED: NTAPP-ds-build-component | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [ds-delta-decision]
+    workspace: false
+
+  - id: story-bridge
+    description: "Stage 4c — tao story (relaxed: skip slice_id; idempotent)"
+    model: sonnet   # synthesis templated + guardrail. Nang opus neu unit phuc tap.
+    # hook (post): Hook 7 story-bridge-gate (relaxed, quet `find -maxdepth 1` tai root).
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      Story da co (NTAPP-output/Stage_5_Build_Verify/<unit_id>.md) -> SKIP.
+      Chua -> Invoke: Skill(skill="bmad-create-story", args="unit=<unit_id>") — bat buoc, khong tu viet story.
+      PHAI ghi PHANG tai {implementation_artifacts} root
+      (= NTAPP-output/Stage_5_Build_Verify/), ten file = <unit_id>.md.
+      CAM: subfolder stories/ | tien to story- | danh so epic.story (vd 2.1-...)
+      — sai cho => Hook 7 thoat gate + bmad-dev-story khong tim thay. Lo dat sai -> move ve <unit_id>.md.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-create-story | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [dd, ui-schema, ds-build]
+    workspace: false
+
+  - id: atdd-classify
+    description: "Decision — 5 trigger Mandatory ATDD (canonical Manual §5.1)"
+    model: sonnet   # classification theo 5 trigger cu the
+    # hook: Hook 8 atdd-classifier.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      Doi chieu 5 trigger Mandatory ATDD cho story <unit_id> (Manual_phase_1.md §5.1):
+      A1 cross-system | A2 multi-actor/stateful | A3 async/resilience | B1 critical-domain | B2 destructive.
+      match >=1 -> mandatory_atdd. Soft-signal -> QA Lead Fallback. Con lai -> Optional.
+    depends_on: [story-bridge]
+    workspace: false
+
+  - id: framework-setup
+    description: "Stage 4d pre — dam bao test framework per-MODULE (skip neu da co / khong ATDD)"
+    model: sonnet   # detect config + scaffold qua skill
+    # bmad-testarch-atdd preflight HALT neu thieu config; headless HALT = exit 0 -> ATDD bi BO QUA IM LANG.
+    # Node = guard: dam bao framework ton tai truoc atdd-tests.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id. Framework la per-MODULE, setup 1 lan.
+      KHONG mandatory_atdd (va khong optional-ATDD) -> skip.
+      Resolve module chua <unit_id> tu project_wbs.md -> detect config theo stack:
+        FE/fullstack -> playwright.config.ts | cypress.config.ts
+        BE           -> conftest.py | src/test/ | go.mod (*_test.go) | .rspec
+      Da co -> SKIP. Chua -> Invoke: Skill(skill="bmad-testarch-framework") — bat buoc, khong tu scaffold config
+      bang tay (layout phai khop cai bmad-testarch-atdd mong doi, khong thi ATDD HALT im lang).
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-testarch-framework | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [atdd-classify]
+    workspace: false
+
+  - id: atdd-tests
+    description: "Stage 4d — ATDD tests (skip neu khong mandatory; idempotent)"
+    # hook: Hook 9 build-loop (test files). depends_on framework-setup de atdd preflight khong HALT.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      Doc <unit_id>.md front-matter: KHONG mandatory_atdd -> SKIP. Tests da co -> SKIP.
+      Chua -> Invoke: Skill(skill="bmad-testarch-atdd", args="story=<unit_id>") — bat buoc, khong tu viet test.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-testarch-atdd | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [atdd-classify, framework-setup]
+    workspace: false
+
+  - id: dev
+    description: "Stage 5 — viet code (idempotent neu story Done)"
+    # hook: Hook 9 build-loop (intensive, PostToolUse + pre-commit). bmad-dev-story PER-STORY.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      Story NTAPP-output/Stage_5_Build_Verify/<unit_id>.md da Done -> SKIP.
+      Chua -> Invoke: Skill(skill="bmad-dev-story", args="story=<unit_id>") — bat buoc, khong thay the bang cach
+      tu viet code theo DD. Skill trung lap ngon ngu (BE Java dung binh thuong) nen "stack khong hop" khong phai ly do.
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-dev-story | yes|no|skipped | <ly do neu no/skipped>
+    depends_on: [atdd-tests]
+    workspace: false
+
+  - id: code-review
+    description: "Stage 5 — code review changeset; ghi knowledge per-unit (audit snapshot)"
+    # Scope: uncommitted + staged (1 unit). Khong hoi HITL (headless se treo).
+    # Knowledge = WRITE-ONLY audit/retro snapshot cho nguoi doc — KHONG feed sang unit ke.
+    # (Lane 4 khong co cross-iteration ledger; muon feed-forward dung slice-loop Lane 3.)
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      Invoke: Skill(skill="bmad-code-review", args="scope=uncommitted+staged") — bat buoc, khong thay the bang cach
+      tu doc diff roi nhan xet: gia tri nam o 3 lop review doi khang chay song song + triage co cau truc.
+      Khong hoi HITL.
+
+      GHI BAO CAO REVIEW theo template CHOT — bat buoc, KHONG tu che hinh dang:
+        template: review_report_template.md — file nam trong thu muc templates/ cua chinh skill bmad-code-review
+                  (skill da load thi doc duoc; TUYET DOI khong doan hinh dang report tu dau)
+        file    : NTAPP-output/Stage_5_Build_Verify/reviews/<unit_id>_review.md
+      Moi finding = 1 heading H3 + DUNG MOT dong marker "okf-finding:" ngay duoi heading do
+      (dang: id {B|H|M|L}{so} · severity · status · location). Bang tom tat KHONG mang marker:
+      no la chi muc, khong phai noi dung — dat marker o ca hai noi se dem 1 finding thanh 2.
+
+      Sau review -> ghi DE (overwrite) NTAPP-output/ledgers/knowledge/<unit_id>.md (mkdir -p):
+        ## <unit_id> — <ten unit>
+        - **Pattern**: pattern/seam/contract trong code unit nay
+        - **Decision**: quyet dinh thiet ke trong diff + ly do
+        - **Gotcha**: van de review/dev gap + cach giai
+        - **Notes for retro**: gach dau y
+      Khong co bai hoc -> van ghi file voi cac muc "—" (danh dau unit da close).
+
+      Ket thuc bao cao bang: SKILL_INVOKED: bmad-code-review | yes|no | <ly do neu no>
+    depends_on: [dev]
+    workspace: false
+
+  - id: demo-unit
+    description: "HITL — demo, cap nhat story status, nhac unit tiep theo"
+    model: sonnet   # tom tat + flip status + pending list
+    # Lane 4 khong co slice manifest -> cap nhat demo_status trong story file, KHONG ghi slice-ledger.
+    prompt: |
+      unit_id = noi dung NTAPP-output/.current-unit-id.
+      1. Demo cho SeniorDev/PM/PO: doc knowledge/<unit_id>.md + story <unit_id>.md ->
+         tom tat story, flow chinh, findings tu code-review.
+      2. Demo pass -> them "demo_status: passed" vao front-matter story (hoac checkbox "Demo passed").
+      3. Append cuoi knowledge/<unit_id>.md: "**Demo**: passed | <ngay> | reviewer: <ten>".
+      4. Doc NTAPP-output/.pending-units:
+         rong / khong co -> bao "Da build het unit cua yeu cau."
+         co dong -> loai <unit_id> vua build, ghi lai file, roi liet ke unit con cho
+         (<unit_id> | module | mo ta) + lenh chay tung cai: `/NTAPP-vsaf-ad-hoc-per-unit <unit_id>`.
+    depends_on: [code-review]
+    workspace: false

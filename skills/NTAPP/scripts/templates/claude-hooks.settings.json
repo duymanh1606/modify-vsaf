@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/triage_prereq_gate.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stage3_input_gate.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/ds_build_approval_gate.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/hotfix_classifier.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/drift_detector.py" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/drift_detector.py" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/ds_delta_router.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/story_bridge_gate.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stage2_completeness.sh" },
+          { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/slice_coverage_dag_validate.py" }
+        ]
+      }
+    ]
+  }
+}

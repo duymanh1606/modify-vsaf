@@ -1,0 +1,21 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+skinparam shadowing false
+
+skinparam sequenceMessageAlign center
+skinparam sequenceArrowThickness 1
+skinparam sequenceParticipantBorderColor #333333
+skinparam sequenceLifeLineBorderColor #666666
+skinparam sequenceBoxBackgroundColor #F0F0F0
+skinparam sequenceBoxBorderColor #999999
+skinparam sequenceGroupBodyBackgroundColor #FFFFFF90
+
+title insurance-claim-business - Sequence Diagram
+
+actor "Client" as client
+
+@enduml

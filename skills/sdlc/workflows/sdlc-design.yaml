@@ -1,0 +1,12 @@
+name: sdlc-design
+description: "Sub-flow: Architecture → SRS — design solution and write detailed spec"
+
+nodes:
+  - id: architecture
+    command: sdlc-architecture
+    workspace: false
+
+  - id: srs
+    command: sdlc-srs
+    depends_on: [architecture]
+    workspace: false

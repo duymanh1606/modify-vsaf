@@ -1,0 +1,206 @@
+# =============================================================================
+# VDS Tier 3 — CLI Containers
+# =============================================================================
+# CLI orchestrators that exit 0 after running their subcommand. Per ADR-INF-10,
+# Tier 2 (services) holds the 4 long-running services; this file holds Tier 3
+# (CLI-only). All share `restart: "no"` + exit-0 contract.
+#
+# Migration commands: see docs/agents/reference/migration-playbook.md
+# Profiles: audit | pdf | progress | db-query | vds-cli | mcp-server | cli
+# =============================================================================
+
+# Must match docker-compose.infra.yml + docker-compose.services.yml so all
+# three files form the same Compose project (ADR-INF-7 hybrid identity anchor).
+name: vds-platform
+
+x-env-files: &env_files
+  - ${HOME}/.vds/.env
+
+# v2.15.15 (I5): bound JSON-file log driver to prevent unbounded disk growth.
+# CLI containers are short-lived, but `docker compose logs <svc>` history
+# still accumulates per-invocation; capped here for parity with Tier 1/2.
+x-logging-default: &logging-default
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Audit Orchestrator (CLI; postgres-backed via audit_state schema)
+  # ---------------------------------------------------------------------------
+  # Migrations are run as an explicit operator step (NOT a depends_on dependency).
+  # Tier 3B sub-shape (auto-init migrate container) retired in v2.15.10 per
+  # ADR-INF-10 update. Run before first up or after model changes:
+  #
+  #   docker compose -f docker-compose.infra.yml \
+  #                  -f docker-compose.services.yml \
+  #                  -f docker-compose.cli.yml \
+  #                  --profile audit \
+  #                  run --rm --no-deps --entrypoint /opt/venv/bin/alembic audit-orchestrator \
+  #                  -c /app/audit_orchestrator/alembic.ini upgrade head
+  audit-orchestrator:
+    profiles: ["audit", "cli"]
+    build:
+      # audit Dockerfile hardcodes WHO-project/vds-scripts/... paths,
+      # so its context must be the monorepo root (vds/).
+      context: ../../../
+      dockerfile: WHO-project/vds-scripts/audit_orchestrator/Dockerfile
+    image: vds-audit:${VERSION:-1.0.0}
+    container_name: vds-audit-orchestrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    env_file: *env_files
+    environment:
+      # Post-P8 (v2.15.7): route through PgBouncer stanza vds_audit. Audit's session-scoped advisory locks (state/store.py:5265,5279) require session mode — uniform topology preserves correctness.
+      VDS_AUDIT_STATE_DSN: postgresql://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_audit
+      VDS_AUDIT_LANGGRAPH__POSTGRES_DSN: postgresql://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_audit
+      VDS_AUDIT_LLM_PROTOCOL: ${VDS_AUDIT_LLM_PROTOCOL:-anthropic}
+      VDS_AUDIT_LLM__BASE_URL: ${VDS_AUDIT_LLM__BASE_URL:-}
+      VDS_AUDIT_LLM__API_KEY: ${VDS_AUDIT_LLM__API_KEY:-}
+      VDS_USERNAME: ${VDS_USERNAME:-}
+      VDS_PASSWORD: ${VDS_PASSWORD:-}
+      BITBUCKET_ACCESS_TOKEN: ${BITBUCKET_ACCESS_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ${AUDIT_DATA_DIR:-./data}:/data:ro
+      - ${AUDIT_OUTPUT_DIR:-./reports}:/app/reports
+      - audit_cache:/app/cache
+    networks:
+      - vds
+    restart: "no"
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # PDF Orchestrator (CLI; redis DB 7)
+  # ---------------------------------------------------------------------------
+  pdf-orchestrator:
+    profiles: ["pdf", "cli"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: pdf_orchestrator/Dockerfile
+    image: vds-pdf:${VERSION:-1.0.0}
+    container_name: vds-pdf-orchestrator
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379/7
+    volumes:
+      - pdf_cache:/app/cache
+    networks:
+      - vds
+    restart: "no"
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # Progress Report Orchestrator (CLI; postgres `progress` schema)
+  # ---------------------------------------------------------------------------
+  # Migrations are run as an explicit operator step (NOT a depends_on dependency).
+  # Tier 3B sub-shape (auto-init migrate container) retired in v2.15.10 per
+  # ADR-INF-10 update. Run before first up or after model changes:
+  #
+  #   docker compose ... --profile progress \
+  #     run --rm --no-deps --entrypoint /opt/venv/bin/alembic progress-report-orchestrator \
+  #     -c /app/progress_report_orchestrator/alembic.ini upgrade head
+  progress-report-orchestrator:
+    profiles: ["progress", "cli"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: progress_report_orchestrator/Dockerfile
+    image: vds-progress:${VERSION:-1.0.0}
+    container_name: vds-progress-report-orchestrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    environment:
+      # Post-P8 (v2.15.7): route through PgBouncer stanza vds_progress.
+      # Note: state/schema.py:_connect() helper SETs search_path post-connect (F21 close), so connect_query is paired with app-level pinning for unqualified-DML resilience.
+      DATABASE_URL: postgresql://postgres:${VDS_POSTGRES_PASSWORD:-vds_postgres_secret}@vds-pgbouncer:6432/vds_progress
+    volumes:
+      - ${PROGRESS_REPORTS_DIR:-./reports/progress}:/app/reports
+      - progress_cache:/app/cache
+    networks:
+      - vds
+    restart: "no"
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # DB Query Orchestrator (CLI; external-DB client)
+  # ---------------------------------------------------------------------------
+  db-query-orchestrator:
+    profiles: ["db-query", "cli"]
+    env_file: *env_files
+    build:
+      context: ../
+      dockerfile: db_query_orchestrator/Dockerfile
+    image: vds-db-query:${VERSION:-1.0.0}
+    container_name: vds-db-query-orchestrator
+    networks:
+      - vds
+    restart: "no"
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # VDS CLI Unified Router
+  # ---------------------------------------------------------------------------
+  vds-cli:
+    profiles: ["vds-cli", "cli"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: vds-cli:latest
+    container_name: vds-cli
+    env_file: *env_files
+    volumes:
+      - ../reports:/app/reports
+      - ${HOME}/.vds:/root/.vds:ro
+    working_dir: /app
+    networks:
+      - vds
+    stdin_open: true
+    tty: true
+    restart: "no"
+    logging: *logging-default
+
+  # ---------------------------------------------------------------------------
+  # MCP Server (Model Context Protocol bridge)
+  # ---------------------------------------------------------------------------
+  mcp-server:
+    profiles: ["mcp-server", "cli"]
+    build:
+      context: ..
+      dockerfile: mcp_server/Dockerfile
+    image: vds-mcp-server:latest
+    container_name: vds-mcp-server
+    env_file: *env_files
+    volumes:
+      - ${HOME}/.vds:/root/.vds:ro
+    ports:
+      - "${MCP_PORT:-8001}:8000"
+    networks:
+      - vds
+    depends_on:
+      - vds-cli
+    stdin_open: true
+    tty: true
+    restart: "no"
+    logging: *logging-default
+
+# =============================================================================
+# Volumes (CLI-only; shared with other tiers via fixed names)
+# =============================================================================
+volumes:
+  audit_cache:
+    name: vds-audit-cache
+  pdf_cache:
+    name: vds-pdf-cache
+  progress_cache:
+    name: vds-progress-cache

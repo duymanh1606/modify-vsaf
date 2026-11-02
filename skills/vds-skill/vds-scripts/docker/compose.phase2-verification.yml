@@ -1,0 +1,31 @@
+services:
+  phase2-ubuntu-verifier:
+    image: ghcr.io/astral-sh/uv:python3.14-bookworm
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+      - phase2-uv-cache:/tmp/phase2-uv-cache
+    environment:
+      VDS_CONFIG_DIR: /workspace/.phase2-linux/config
+      VDS_CACHE_DIR: /workspace/.phase2-linux/cache
+      VDS_LOG_DIR: /workspace/.phase2-linux/logs
+      VDS_ENV_FILE: /workspace/.phase2-linux/config/.env
+      UV_PROJECT_ENVIRONMENT: /tmp/phase2-uv-env
+      UV_CACHE_DIR: /tmp/phase2-uv-cache
+      UV_HTTP_TIMEOUT: "120"
+      UV_LINK_MODE: copy
+    command: >-
+      bash -lc '
+        set -euo pipefail
+        mkdir -p /workspace/.phase2-linux/config /workspace/.phase2-linux/cache /workspace/.phase2-linux/logs /tmp/phase2-uv-cache
+        uv run --frozen --verbose --project vds_cli_common pytest vds_cli_common/tests/test_paths.py vds_cli_common/tests/test_env.py
+        PYTHONPATH=audit_orchestrator/src:vds_cli_common/src \
+          uv run --no-project --with pytest --with pydantic --with pydantic-settings --with structlog --with platformdirs --with typer --with rich \
+          pytest --noconftest audit_orchestrator/tests/test_paths_config_phase2.py audit_orchestrator/tests/unit/scripts/test_verify_phase124_handoff.py -q
+        PYTHONPATH=audit_orchestrator/src:vds_cli_common/src:bitbucket_orchestrator/src:confluence_orchestrator/src:sonarqube_orchestrator/src:google_sheets_orchestrator/src:excel_orchestrator/src:git_orchestrator/src:vds_cli/src:spec_orchestrator/src \
+          uv run --no-project --with pytest --with pydantic --with pydantic-settings --with structlog --with platformdirs --with typer --with rich --with httpx --with pyyaml --with filelock --with markdown-it-py --with beautifulsoup4 --with openpyxl --with pandas --with requests --with atlassian-python-api --with pydantic-ai --with "psycopg[binary]" --with text-unidecode --with python-sonarqube-api --with dspy-ai --with PyGithub --with langgraph --with langgraph-checkpoint --with langgraph-checkpoint-postgres \
+          pytest --noconftest audit_orchestrator/tests/test_cli_paths_phase2.py -q
+      '
+
+volumes:
+  phase2-uv-cache:

@@ -1,0 +1,20 @@
+name: sdlc-qa
+description: "Sub-flow: Review → Feature Complete → Ship — quality gate + knowledge update + deploy"
+
+nodes:
+  - id: review
+    description: "Review: code review against SRS, architecture, and best practices"
+    command: sdlc-review
+    workspace: false
+
+  - id: complete
+    description: "Feature Complete: update knowledge base and project documentation"
+    command: sdlc-feature-complete
+    depends_on: [review]
+    workspace: false
+
+  - id: ship
+    description: "Ship: create PR, final checks, deploy"
+    command: sdlc-ship
+    depends_on: [complete]
+    workspace: false

@@ -1,0 +1,39 @@
+[project]
+name = "vds-markdown-orchestrator"
+version = "0.1.0"
+description = "VDS Markdown processing and validation orchestrator"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "vds-cli-common",
+    "typer>=0.24.1",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "rich>=14.3.3",
+    "structlog>=25.5.0",
+    "markdown>=3.10",
+    "mdformat>=0.7.17",
+    "click>=8.3.1",
+]
+
+[project.scripts]
+vds-markdown = "vds_markdown_orchestrator.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vds_markdown_orchestrator"]
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.14.11",
+]
+
+[tool.uv.sources]
+vds-cli-common = { workspace = true }

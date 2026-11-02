@@ -1,0 +1,72 @@
+# =====================================================================
+# FIXTURES TEMPLATE — Machine-readable test data + môi trường
+# File: {id}_fixtures.yaml   ({id} = ID đầy đủ SLICE/unit, vd SLICE-06 / WGT-SIDEBAR)
+# Hợp đồng: ../../principles/automation_contract_rules.md (Triple-Emit §1)
+# Thay thế phần "prose" của Mục 5.3 markdown bằng dữ liệu máy-đọc cho qa-robot.
+# Iron Rules R1: mọi giá trị phải truy về phần Dữ liệu trong _detailed_design — cấm bịa. Thiếu -> [TBD].
+# =====================================================================
+
+id: {id}
+generated: "{timestamp}"
+
+# ---- Môi trường E2E ----
+environment:
+  name: Staging
+  base_url: "{staging_base_url}"        # [TBD] nếu chưa có
+  # Mock API (nếu ca kiểm thử cần) — qa-robot dựng stub theo đây
+  mocks:
+    - endpoint: "{method} {path}"
+      when: "{điều kiện kích hoạt}"
+      response_status: 200
+      response_body_ref: "{tên dataset}"
+
+# ---- Fixtures: CHỈ dữ liệu DÙNG CHUNG (≥2 dataset) / phức tạp / động ----
+# scope: e2e (chạy qua UI) | api (gọi thẳng API) | db-seed (insert trước khi test)
+# QUY TẮC (automation_contract_rules.md §1 "Inline-value vs fixture_ref"):
+#   - KHÔNG tạo fixture tên riêng cho giá trị field TĨNH dùng-1-lần → ghi thẳng inline ở datasets bên dưới.
+#   - Fixture chỉ tồn tại khi: (a) ≥2 dataset dùng chung, HOẶC (b) payload nhiều field phức tạp, HOẶC (c) động ($db.query/$seed).
+fixtures:
+  - key: valid_compose_payload            # (a)+(b): payload phức tạp, được nhiều case submit dùng chung
+    scope: e2e
+    source: "_detailed_design (phần Dữ liệu)"   # traceability R3
+    data:
+      ten_ho_so: "Hồ sơ hợp lệ A"
+      # ... các field hợp lệ khác lấy từ phần Dữ liệu trong _detailed_design
+    teardown: "DELETE FROM composite_requests WHERE ten_ho_so = 'Hồ sơ hợp lệ A'"
+
+  - key: pmt_real_pending                 # (c): động — subId/merchantCode phải khớp bản ghi thật (Dynamic Binding)
+    scope: e2e
+    source: "_detailed_design (phần Dữ liệu)"
+    data:
+      subId: "$db.query(pmt_pending: SELECT id FROM ... WHERE status=5 LIMIT 1)"
+
+# ---- Datasets: ánh xạ từng testcase @exec:automate/@exec:exploratory -> data ----
+# qa-robot đọc bảng này để biết case nào lấy data nào (thay cột "Data Test" prose).
+# Case field tĩnh: GHI THẲNG giá trị inline. Case dùng chung/động: fixture_ref (+ overrides nếu cần).
+datasets:
+  # Loại 3 tĩnh dùng-1-lần → inline, KHÔNG refer:
+  - { id: KB-{id}-02, data: { email: "testdomain.com" }, note: "email thiếu @" }
+  - { id: KB-{id}-03, data: { ten_ho_so: "<256 ký tự>" }, note: "BVA max255 - vượt biên" }
+  # Dùng chung / payload phức tạp → fixture_ref:
+  - { id: KB-{id}-04, fixture_ref: valid_compose_payload }
+  - { id: KB-{id}-05, fixture_ref: valid_compose_payload, overrides: { ten_ho_so: "Hồ sơ hợp lệ B" } }
+  # Động → fixture_ref chứa $marker (hoặc inline data: { field: "$db.query(...)" }):
+  - { id: KB-{id}-06, fixture_ref: pmt_real_pending }
+  # Cần điều kiện đặc biệt không có sẵn:
+  - { id: KB-{id}-07, fixture_ref: null, note: "Security IDOR — cần 2 token (User A / User B), cấp ở môi trường test" }
+
+# ---- Cảnh báo bridge (đọc bởi qa-robot, không chặn skill này) ----
+# Khai theo surface_type. Bề mặt ui -> ui_schema_required. Bề mặt service -> khối api bên dưới.
+automation_prereq:
+  # (surface=ui) qa-robot cần để lấy selector; thiếu -> automation chặn
+  ui_schema_required:
+    - "ui_schema_{SCR-UNIT}.json"
+  # (surface=service) no-UI: KHÔNG cần ui_schema — qa-robot sinh keyword RequestsLibrary theo POM.
+  #   Bỏ trống/xoá ui_schema_required và khai khối dưới (xem service_surface_rules.md §5).
+  api:
+    base_url: "{staging_api_base_url}"          # [TBD] nếu chưa có
+    auth: "{cách lấy token: client-credential / login endpoint}"
+    api_contract: "_detailed_design (phần Hợp đồng) / OpenAPI nếu có"
+    mocks:                                        # key = "mocks" (qa-robot step-02 đọc automation_prereq.api.mocks)
+      - "{downstream service/đối tác cần stub}"   # các [Downstream] operation gọi đi
+  notes: "Skill QA không sinh selector/keyword. surface=ui cần ui_schema; surface=service cần base_url+auth+api_contract+mocks trước khi chạy /ntapp-qa-robot."

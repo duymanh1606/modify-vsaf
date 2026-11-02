@@ -1,0 +1,44 @@
+name: Confluence Sync
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python + uv
+        uses: astral-sh/setup-uv@v6
+        # uv provides Python (managed) and handles caching.
+        # NO separate actions/setup-python step needed.
+      
+      - name: Sync workspace
+        run: uv sync --all-packages
+      
+      - name: Configure environment
+        run: |
+          mkdir -p ~/.vds
+          cat > ~/.vds/.env << 'ENV_EOF'
+          VDS_USERNAME=${{ secrets.VDS_USERNAME }}
+          VDS_PASSWORD=${{ secrets.VDS_PASSWORD }}
+          BITBUCKET_TOKEN=${{ secrets.BITBUCKET_TOKEN }}
+          CONFLUENCE_INTERNAL_TOKEN=${{ secrets.CONFLUENCE_INTERNAL_TOKEN }}
+          ENV_EOF
+      
+      - name: Validate docs
+        run: |
+          uv run --project vds_cli vds-cli docs validate --repo-root . --check-vi --check-diataxis
+      
+      - name: Sync to Confluence
+        # Note: --create-missing is intentionally omitted. New pages are created
+        # manually via 'vds-cli docs confluence-sync --create-missing' to avoid
+        # duplicate-page risks in automated CI. All existing pages have fixed IDs.
+        run: |
+          uv run --project vds_cli vds-cli docs confluence-sync --validate-links
+        env:
+          VDS_USERNAME: ${{ secrets.VDS_USERNAME }}
+          VDS_PASSWORD: ${{ secrets.VDS_PASSWORD }}

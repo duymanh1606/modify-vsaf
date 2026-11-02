@@ -1,0 +1,13 @@
+{
+  "_comment": "Reference schema derived from agy 1.0.14 protobuf (exa.hooks_pb). Field names: postToolHooks[].{name,command,args,event,matcher,timeout_millis}. agy 1.0.14 stores hooks via the interactive /hooks form, not this file — keep this as the source of truth for if/when agy adds JSON import.",
+  "postToolHooks": [
+    {
+      "name": "ntapp-build-loop",
+      "event": "PostToolUse",
+      "matcher": "write_to_file|replace_file_content",
+      "command": "node",
+      "args": ["/Users/ngoanh/Ngoanh CoWork/NTAPP-VSAF-Blended/scripts/antigravity/hooks/agy-posttool-shim.cjs"],
+      "timeout_millis": 30000
+    }
+  ]
+}

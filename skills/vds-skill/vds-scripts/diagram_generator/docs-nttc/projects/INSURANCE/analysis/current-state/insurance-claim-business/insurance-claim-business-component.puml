@@ -1,0 +1,23 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+skinparam shadowing false
+
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam componentBorderColor #333333
+skinparam packageBorderColor #666666
+
+title insurance-claim-business - Component Diagram
+
+package "insurance-claim-business" {
+}
+
+database "MariaDB" as db
+
+
+
+@enduml
