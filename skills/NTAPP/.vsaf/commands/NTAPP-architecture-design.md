@@ -1,5 +1,5 @@
 ---
-description: Stage 2 — 6 sub-agent: HLD + Module 0 + WBS
+description: 'Stage 2 — 6 sub-agent: HLD + Module 0 + WBS'
 skill: NTAPP-architecture-design
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Hotfix Phase 3 — TDD implementation: RED → GREEN → REFACTOR, minimal fix, SonarQube-in-loop
+description: 'Hotfix Phase 3 — TDD implementation: RED → GREEN → REFACTOR, minimal fix, SonarQube-in-loop'
 skill: sdlc-hotfix-implement
 ---
 
