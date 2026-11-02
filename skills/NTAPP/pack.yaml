@@ -61,6 +61,10 @@ skills:
   # Bitbucket
   - create-pull-request
 
+  # One-command orchestrators (state-driven, stop at every HITL gate)
+  - brownfield
+  - docs-to-slice
+
   # Workflow entry points
   - vsaf-run
   - vsaf-resume
@@ -72,7 +76,7 @@ skills:
   - vsaf-slice-loop
   - vsaf-staging-deploy
 
-# Deployed without a prefix — the 15 skills that NTAPP skills and workflows call by
+# Deployed without a prefix — the 19 skills that NTAPP skills and workflows call by
 # name, plus what those skills call in turn. Installing NTAPP must not require
 # installing sdlc, so these travel with the pack.
 bundled:
@@ -81,13 +85,17 @@ bundled:
   - bmad-create-epics-and-stories
   - bmad-create-prd
   - bmad-create-story
+  - bmad-edit-prd
   - bmad-quick-dev
+  - bmad-review-adversarial-general
   - bmad-testarch-atdd
   - bmad-testarch-ci
   - bmad-testarch-framework
   - bmad-testarch-nfr
   - bmad-testarch-trace
+  - bmad-validate-prd
   - c4-diagram-optimizer
+  - grill-me
   - grill-with-docs
   - lavish
   # Called by a workflow node, not by any skill file

@@ -72,6 +72,8 @@ Tất cả workflow NTAPP nằm tại `.vsaf/workflows/NTAPP/`. **Chạy qua sla
 
 **2 track chỉ khác nhau ở khối onboard (Stage 0-2); từ Stage 2b trở đi giống hệt.** Chọn sai track thì `reproduce_architecture` fail ngay ở `input-gate` (đòi ≥1 code repo).
 
+> **Lệnh một bước (orchestrator):** `/NTAPP-docs-to-slice` tự phát hiện có code / tài liệu thô / tài liệu chuẩn rồi đi tới slice plan; thấy code repo thì giao cho `/NTAPP-brownfield` (Track A: DS → system-overview → reproduce → review đối chiếu code → SA duyệt → yêu cầu mới → slice plan). Cả hai chỉ gọi skill theo thứ tự bên dưới, đọc state để chạy tiếp từ bước dở, và dừng ở mọi HITL gate.
+
 **Track A — Brownfield** (hệ đã có code chạy). Khối onboard = *Phase A reconstruct baseline*, chạy **1 lần / hệ thống**:
 
 ```
